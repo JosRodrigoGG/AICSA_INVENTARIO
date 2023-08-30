@@ -1,0 +1,1458 @@
+CREATE OR REPLACE FUNCTION SAF.RETURN_DETALLE_NOTAS_FINANCIERAS_CORPORACION
+(
+	V_EMPRESA VARCHAR2,
+	V_ID_PLANTILLA NUMBER DEFAULT 0,
+	V_ID_PADRE NUMBER DEFAULT 0,
+	V_INTERCOMPANY VARCHAR DEFAULT 'N',
+	V_AGRUPADOR NUMBER,
+	V_AGRUPAR_MENOR_A NUMBER DEFAULT 0,
+    V_ANIO NUMBER DEFAULT TO_NUMBER(TO_CHAR(SYSDATE, 'YYYY')),
+    V_MES_INICIO NUMBER DEFAULT 1,
+    V_MES_FIN NUMBER DEFAULT 12,
+    V_VERSION NUMBER DEFAULT 2020
+)
+RETURN T_CON_DETALLE_NOTAS AS
+    V_T_DETALLE_NOTAS T_CON_DETALLE_NOTAS := T_CON_DETALLE_NOTAS();
+   	V_TEMP_DETALLE_NOTAS T_CON_DETALLE_NOTAS := T_CON_DETALLE_NOTAS();
+   
+   CURSOR C_CLIENTE_SIN_AGRUPADOR
+   (P_ANIO NUMBER, P_EMPRESA VARCHAR2, P_FINICIO NUMBER, P_FFIN NUMBER, P_ID_PLANTILLA NUMBER, P_ID_PADRE NUMBER) IS
+   WITH AGRUPADOR_CUENTAS AS
+    (
+    	SELECT
+    		NUMERO_CLIENTE,
+        	NOMBRE_CLIENTE,
+        	(
+        		CASE WHEN EJERCICIO = TO_NUMBER(P_ANIO) THEN
+        			NVL(SUM(VALOR), 0)
+        		ELSE
+        			0
+        		END
+        	) AS TOTAL_1,
+        	(
+        		CASE WHEN EJERCICIO = (TO_NUMBER(P_ANIO) - 1) THEN
+        			NVL(SUM(VALOR), 0)
+        		ELSE
+        			0
+        		END
+        	) AS TOTAL_2
+    	FROM SAF.APX_VW_CON_NOTAS_POLIZASD A 
+    	WHERE A.CODIGO_EMPRESA IN
+        (
+            SELECT 
+                REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+            FROM 
+                dual CONNECT BY REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) IS NOT NULL
+        )
+        AND A.EJERCICIO BETWEEN (TO_NUMBER(P_ANIO) - 1) AND TO_NUMBER(P_ANIO)
+    	AND A.MES BETWEEN P_FINICIO AND P_FFIN
+    	AND A.NUMERO_CLIENTE IN
+    	(
+    		SELECT 
+            	NUMERO_CLIENTE
+            FROM SAF.CON_DETALLE_PLANTILLA_NOTAS
+            WHERE ID_PLANTILLA = P_ID_PLANTILLA
+            AND ID_PADRE = P_ID_PADRE
+            AND ES_AGRUPADOR = 'N'
+    	)
+    	GROUP BY NUMERO_CLIENTE, NOMBRE_CLIENTE, EJERCICIO
+    )
+    SELECT
+        NUMERO_CLIENTE,
+        NOMBRE_CLIENTE,
+        SUM(TOTAL_1) AS TOTAL_1,
+        SUM(TOTAL_2) AS TOTAL_2
+    FROM AGRUPADOR_CUENTAS
+    GROUP BY NUMERO_CLIENTE, NOMBRE_CLIENTE;
+   
+   CURSOR C_CLIENTE_AGRUPADOR 
+   (P_ANIO NUMBER, P_EMPRESA VARCHAR2, P_FINICIO NUMBER, P_FFIN NUMBER, P_ID_PLANTILLA NUMBER, P_ID_PADRE NUMBER, P_AGRUPADOR NUMBER) IS
+   WITH AGRUPADOR_CUENTAS AS
+    (
+    	SELECT 
+            NUMERO_CLIENTE,
+            NOMBRE_CLIENTE,
+            SUM(TOTAL_1) AS TOTAL_1,
+            SUM(TOTAL_2) AS TOTAL_2
+        FROM 
+        (
+            SELECT
+                NUMERO_CLIENTE,
+                NOMBRE_CLIENTE,
+                (
+                    CASE WHEN EJERCICIO = TO_NUMBER(P_ANIO) THEN
+                        NVL(SUM(VALOR), 0)
+                    ELSE
+                        0
+                    END
+                ) AS TOTAL_1,
+                (
+                    CASE WHEN EJERCICIO = (TO_NUMBER(P_ANIO) - 1) THEN
+                        NVL(SUM(VALOR), 0)
+                    ELSE
+                        0
+                    END
+                ) AS TOTAL_2
+            FROM SAF.APX_VW_CON_NOTAS_POLIZASD A 
+            WHERE A.CODIGO_EMPRESA IN
+            (
+            SELECT 
+                REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+            FROM 
+                dual CONNECT BY REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) IS NOT NULL
+        )
+            AND A.EJERCICIO BETWEEN (TO_NUMBER(P_ANIO) - 1) AND TO_NUMBER(P_ANIO)
+            AND A.MES BETWEEN P_FINICIO AND P_FFIN
+            AND A.COD_CTA IN
+            (
+                SELECT 
+                    COD_CTA
+                FROM SAF.CON_DETALLE_PLANTILLA_NOTAS
+                WHERE ID_PLANTILLA = P_ID_PLANTILLA
+                AND ID_PADRE = P_ID_PADRE
+                AND ES_AGRUPADOR = 'N'
+            )
+            GROUP BY NUMERO_CLIENTE, NOMBRE_CLIENTE, EJERCICIO
+        ) GROUP BY NUMERO_CLIENTE, NOMBRE_CLIENTE
+    )
+    SELECT
+    	TO_CHAR(NUMERO_CLIENTE) NUMERO_CLIENTE,
+    	NOMBRE_CLIENTE,
+    	TOTAL_1,
+    	TOTAL_2
+    FROM AGRUPADOR_CUENTAS
+    WHERE (ABS(TOTAL_1) >= P_AGRUPADOR OR ABS(TOTAL_2) >= P_AGRUPADOR)
+    UNION ALL
+    SELECT
+    	'AGRUPACION' NUMERO_CLIENTE,
+    	('Cuentas por Liquidar Menores a ' || P_AGRUPADOR) NOMBRE_CLIENTE,
+    	SUM(TOTAL_1) TOTAL_1,
+    	SUM(TOTAL_2) TOTAL_2
+    FROM AGRUPADOR_CUENTAS
+    WHERE (ABS(TOTAL_1) <= P_AGRUPADOR OR ABS(TOTAL_2) <= P_AGRUPADOR)
+    AND NUMERO_CLIENTE NOT IN
+    (
+    	SELECT
+    		DISTINCT
+    		NUMERO_CLIENTE
+    	FROM AGRUPADOR_CUENTAS
+    	WHERE (ABS(TOTAL_1) >= P_AGRUPADOR OR ABS(TOTAL_2) >= P_AGRUPADOR)
+        AND NUMERO_CLIENTE IS NOT NULL
+    );
+   
+   CURSOR C_CONCEPTO_SIN_AGRUPADOR 
+   (P_ANIO NUMBER, P_EMPRESA VARCHAR2, P_FINICIO NUMBER, P_FFIN NUMBER, P_ID_PLANTILLA NUMBER, P_ID_PADRE NUMBER) IS
+   WITH AGRUPADOR_CUENTAS AS
+    (
+        SELECT
+            COD_CTA,
+            CONCEPTO,
+            (
+                CASE WHEN EJERCICIO = TO_NUMBER(P_ANIO) THEN
+                    NVL(SUM(VALOR), 0)
+                ELSE
+                    0
+                END
+            ) AS TOTAL_1,
+            (
+                CASE WHEN EJERCICIO = (TO_NUMBER(P_ANIO) - 1) THEN
+                    NVL(SUM(VALOR), 0)
+                ELSE
+                    0
+                END
+            ) AS TOTAL_2
+        FROM SAF.APX_VW_CON_NOTAS_POLIZASD A 
+        WHERE A.CODIGO_EMPRESA IN
+        (
+            SELECT 
+                REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+            FROM 
+                dual CONNECT BY REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) IS NOT NULL
+        )
+        AND A.EJERCICIO BETWEEN (TO_NUMBER(P_ANIO) - 1) AND TO_NUMBER(P_ANIO)
+        AND A.MES BETWEEN P_FINICIO AND P_FFIN
+        AND A.COD_CTA IN
+        (
+            SELECT 
+            	COD_CTA
+            FROM SAF.CON_DETALLE_PLANTILLA_NOTAS
+            WHERE ID_PLANTILLA = P_ID_PLANTILLA
+            AND ID_PADRE = P_ID_PADRE
+            AND ES_AGRUPADOR = 'N'
+        )
+        GROUP BY COD_CTA, CONCEPTO, EJERCICIO
+    )
+    SELECT
+        COD_CTA,
+        CONCEPTO,
+        SUM(TOTAL_1) AS TOTAL_1,
+        SUM(TOTAL_2) AS TOTAL_2
+    FROM AGRUPADOR_CUENTAS
+    GROUP BY COD_CTA, CONCEPTO;
+   
+   CURSOR C_CONCEPTO_AGRUPADOR 
+   (P_ANIO NUMBER, P_EMPRESA VARCHAR2, P_FINICIO NUMBER, P_FFIN NUMBER, P_ID_PLANTILLA NUMBER, P_ID_PADRE NUMBER, P_AGRUPADOR NUMBER) IS
+   WITH AGRUPADOR_CUENTAS AS
+	(
+		SELECT
+		    COD_CTA,
+		    CONCEPTO,
+		    SUM(TOTAL_1) AS TOTAL_1,
+		    SUM(TOTAL_2) AS TOTAL_2
+		FROM
+		(
+		    SELECT
+		        COD_CTA,
+		        CONCEPTO,
+		        (
+		            CASE WHEN EJERCICIO = TO_NUMBER(P_ANIO) THEN
+		                NVL(SUM(VALOR), 0)
+		            ELSE
+		                0
+		            END
+		        ) AS TOTAL_1,
+		        (
+		            CASE WHEN EJERCICIO = (TO_NUMBER(P_ANIO) - 1) THEN
+		                NVL(SUM(VALOR), 0)
+		            ELSE
+		                0
+		            END
+		        ) AS TOTAL_2
+		    FROM SAF.APX_VW_CON_NOTAS_POLIZASD A 
+		    WHERE A.CODIGO_EMPRESA IN
+            (
+                SELECT 
+                    REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                FROM 
+                    dual CONNECT BY REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) IS NOT NULL
+            )
+		    AND A.EJERCICIO BETWEEN (TO_NUMBER(P_ANIO) - 1) AND TO_NUMBER(P_ANIO)
+		    AND A.MES BETWEEN P_FINICIO AND P_FFIN
+		    AND A.COD_CTA IN
+		    (
+		        SELECT 
+		            COD_CTA
+		        FROM SAF.CON_DETALLE_PLANTILLA_NOTAS
+		        WHERE ID_PLANTILLA = P_ID_PLANTILLA
+		        AND ID_PADRE = P_ID_PADRE
+		        AND ES_AGRUPADOR = 'N'
+		    )
+		    GROUP BY COD_CTA, CONCEPTO, EJERCICIO
+		) GROUP BY COD_CTA, CONCEPTO
+	)
+    SELECT
+    	TO_CHAR(COD_CTA) NUMERO_CUENTA,
+    	CONCEPTO,
+    	TOTAL_1,
+    	TOTAL_2
+    FROM AGRUPADOR_CUENTAS
+    WHERE (ABS(TOTAL_1) >= P_AGRUPADOR OR ABS(TOTAL_2) >= P_AGRUPADOR)
+    UNION ALL
+    SELECT
+    	'AGRUPACION' NUMERO_CUENTA,
+    	('Cuentas por Cobrar Menores a ' || P_AGRUPADOR) NOMBRE,
+    	SUM(TOTAL_1) TOTAL_1,
+    	SUM(TOTAL_2) TOTAL_2
+    FROM AGRUPADOR_CUENTAS
+    WHERE (ABS(TOTAL_1) <= P_AGRUPADOR OR ABS(TOTAL_2) <= P_AGRUPADOR)
+    AND COD_CTA NOT IN
+    (
+    	SELECT
+    		DISTINCT
+    		COD_CTA
+    	FROM AGRUPADOR_CUENTAS
+    	WHERE (ABS(TOTAL_1) >= P_AGRUPADOR OR ABS(TOTAL_2) >= P_AGRUPADOR)
+    );
+   
+   CURSOR C_CODIGO_GASTO_SIN_AGRUPADOR IS
+   SELECT
+	    CODIGO,
+	    NOMBRE,
+	    TOTAL_1,
+	    TOTAL_2
+	FROM TABLE (V_TEMP_DETALLE_NOTAS);
+   
+   CURSOR C_CODIGO_GASTO_AGRUPADOR
+   (P_AGRUPADOR NUMBER) IS
+   WITH AGRUPADOR_CUENTAS AS
+	(
+		SELECT
+		    CODIGO,
+		    NOMBRE,
+		    SUM(TOTAL_1) AS TOTAL_1,
+		    SUM(TOTAL_2) AS TOTAL_2
+		FROM
+		(
+		    SELECT
+		        CODIGO,
+		        NOMBRE,
+		        TOTAL_1,
+		        TOTAL_2
+		    FROM TABLE (V_TEMP_DETALLE_NOTAS)
+		) GROUP BY CODIGO, NOMBRE
+	)
+    SELECT
+    	TO_CHAR(CODIGO) CODIGO,
+    	NOMBRE,
+    	TOTAL_1,
+    	TOTAL_2
+    FROM AGRUPADOR_CUENTAS
+    WHERE (ABS(TOTAL_1) >= P_AGRUPADOR OR ABS(TOTAL_2) >= P_AGRUPADOR)
+    UNION ALL
+    SELECT
+    	'AGRUPACION' NUMERO_CUENTA,
+    	('Cuentas por Cobrar Menores a ' || P_AGRUPADOR) NOMBRE,
+    	SUM(TOTAL_1) TOTAL_1,
+    	SUM(TOTAL_2) TOTAL_2
+    FROM AGRUPADOR_CUENTAS
+    WHERE (ABS(TOTAL_1) <= P_AGRUPADOR OR ABS(TOTAL_2) <= P_AGRUPADOR)
+    AND CODIGO NOT IN
+    (    	
+    	SELECT
+    		DISTINCT
+	        CODIGO
+	    FROM TABLE (V_TEMP_DETALLE_NOTAS)
+	    WHERE (ABS(TOTAL_1) >= P_AGRUPADOR OR ABS(TOTAL_2) >= P_AGRUPADOR)
+    );
+   
+   CURSOR C_GRUPOS_IE
+   (P_ID_PLANTILLA NUMBER, P_ID_PADRE NUMBER) IS
+   	SELECT 
+		COD_CTA,
+	    CODIGO_GASTO,
+	    TODOS_LOS_REGISTROS
+	FROM SAF.CON_DETALLE_PLANTILLA_NOTAS
+	WHERE ID_PLANTILLA = P_ID_PLANTILLA
+	AND ID_PADRE = P_ID_PADRE
+	AND ES_AGRUPADOR = 'N';
+   
+   CURSOR C_ITEM_SIN_AGRUPADOR 
+   (P_ANIO NUMBER, P_EMPRESA VARCHAR2, P_FINICIO NUMBER, P_FFIN NUMBER, P_ID_PLANTILLA NUMBER, P_ID_PADRE NUMBER) IS
+   WITH AGRUPADOR_CUENTAS AS
+    (
+        SELECT
+            COD_CTA,
+            CONCEPTO,
+            (
+                CASE WHEN EJERCICIO = TO_NUMBER(P_ANIO) THEN
+                    NVL(SUM(VALOR), 0)
+                ELSE
+                    0
+                END
+            ) AS TOTAL_1,
+            (
+                CASE WHEN EJERCICIO = (TO_NUMBER(P_ANIO) - 1) THEN
+                    NVL(SUM(VALOR), 0)
+                ELSE
+                    0
+                END
+            ) AS TOTAL_2
+        FROM SAF.APX_VW_CON_NOTAS_POLIZASD A 
+        WHERE A.CODIGO_EMPRESA IN
+        (
+            SELECT 
+                REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+            FROM 
+                dual CONNECT BY REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) IS NOT NULL
+        )
+        AND A.EJERCICIO BETWEEN (TO_NUMBER(P_ANIO) - 1) AND TO_NUMBER(P_ANIO)
+        AND A.MES BETWEEN P_FINICIO AND P_FFIN
+        AND A.COD_CTA IN
+        (
+            SELECT 
+            	COD_CTA
+            FROM SAF.CON_DETALLE_PLANTILLA_NOTAS
+            WHERE ID_PLANTILLA = P_ID_PLANTILLA
+            AND ID_PADRE = P_ID_PADRE
+            AND ES_AGRUPADOR = 'N'
+        )
+        GROUP BY COD_CTA, CONCEPTO, EJERCICIO
+    )
+    SELECT
+        COD_CTA,
+        CONCEPTO,
+        SUM(TOTAL_1) AS TOTAL_1,
+        SUM(TOTAL_2) AS TOTAL_2
+    FROM AGRUPADOR_CUENTAS
+    GROUP BY COD_CTA, CONCEPTO;
+   
+   CURSOR C_ITEM_AGRUPADOR 
+   (P_ANIO NUMBER, P_EMPRESA VARCHAR2, P_FINICIO NUMBER, P_FFIN NUMBER, P_ID_PLANTILLA NUMBER, P_ID_PADRE NUMBER, P_AGRUPADOR NUMBER) IS
+   WITH AGRUPADOR_CUENTAS AS
+	(
+		SELECT
+		    COD_CTA,
+		    CONCEPTO,
+		    SUM(TOTAL_1) AS TOTAL_1,
+		    SUM(TOTAL_2) AS TOTAL_2
+		FROM
+		(
+		    SELECT
+		        COD_CTA,
+		        CONCEPTO,
+		        (
+		            CASE WHEN EJERCICIO = TO_NUMBER(P_ANIO) THEN
+		                NVL(SUM(VALOR), 0)
+		            ELSE
+		                0
+		            END
+		        ) AS TOTAL_1,
+		        (
+		            CASE WHEN EJERCICIO = (TO_NUMBER(P_ANIO) - 1) THEN
+		                NVL(SUM(VALOR), 0)
+		            ELSE
+		                0
+		            END
+		        ) AS TOTAL_2
+		    FROM SAF.APX_VW_CON_NOTAS_POLIZASD A 
+		    WHERE A.CODIGO_EMPRESA IN
+            (
+                SELECT 
+                    REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                FROM 
+                    dual CONNECT BY REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) IS NOT NULL
+            )
+		    AND A.EJERCICIO BETWEEN (TO_NUMBER(P_ANIO) - 1) AND TO_NUMBER(P_ANIO)
+		    AND A.MES BETWEEN P_FINICIO AND P_FFIN
+		    AND A.COD_CTA IN
+		    (
+		        SELECT 
+		            COD_CTA
+		        FROM SAF.CON_DETALLE_PLANTILLA_NOTAS
+		        WHERE ID_PLANTILLA = P_ID_PLANTILLA
+		        AND ID_PADRE = P_ID_PADRE
+		        AND ES_AGRUPADOR = 'N'
+		    )
+		    GROUP BY COD_CTA, CONCEPTO, EJERCICIO
+		) GROUP BY COD_CTA, CONCEPTO
+	)
+    SELECT
+    	TO_CHAR(COD_CTA) NUMERO_CUENTA,
+    	CONCEPTO,
+    	TOTAL_1,
+    	TOTAL_2
+    FROM AGRUPADOR_CUENTAS
+    WHERE (ABS(TOTAL_1) >= P_AGRUPADOR OR ABS(TOTAL_2) >= P_AGRUPADOR)
+    UNION ALL
+    SELECT
+    	'AGRUPACION' NUMERO_CUENTA,
+    	('Cuentas por Cobrar Menores a ' || P_AGRUPADOR) NOMBRE,
+    	SUM(TOTAL_1) TOTAL_1,
+    	SUM(TOTAL_2) TOTAL_2
+    FROM AGRUPADOR_CUENTAS
+    WHERE (ABS(TOTAL_1) <= P_AGRUPADOR OR ABS(TOTAL_2) <= P_AGRUPADOR)
+    AND COD_CTA NOT IN
+    (
+    	SELECT
+    		DISTINCT
+    		COD_CTA
+    	FROM AGRUPADOR_CUENTAS
+    	WHERE (ABS(TOTAL_1) >= P_AGRUPADOR OR ABS(TOTAL_2) >= P_AGRUPADOR)
+    );
+   
+   CURSOR C_CENTRO_COSTO_SIN_AGRUPADOR
+   (P_ANIO NUMBER, P_EMPRESA VARCHAR2, P_FINICIO NUMBER, P_FFIN NUMBER, P_ID_PLANTILLA NUMBER, P_ID_PADRE NUMBER) IS
+   WITH AGRUPADOR_CUENTAS AS
+	(
+	    SELECT
+	        CODIGO_CC,
+	        NOMBRE_CC,
+	        (
+	            CASE WHEN EJERCICIO = TO_NUMBER(P_ANIO) THEN
+	                NVL(SUM(VALOR), 0)
+	            ELSE
+	                0
+	            END
+	        ) AS TOTAL_1,
+	        (
+	            CASE WHEN EJERCICIO = (TO_NUMBER(P_ANIO) - 1) THEN
+	                NVL(SUM(VALOR), 0)
+	            ELSE
+	                0
+	            END
+	        ) AS TOTAL_2
+	    FROM SAF.APX_VW_CON_NOTAS_POLIZASD A 
+	    WHERE A.CODIGO_EMPRESA IN
+        (
+            SELECT 
+                REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+            FROM 
+                dual CONNECT BY REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) IS NOT NULL
+        )
+	    AND A.EJERCICIO BETWEEN (TO_NUMBER(P_ANIO) - 1) AND TO_NUMBER(P_ANIO)
+	    AND A.MES BETWEEN P_FINICIO AND P_FFIN
+	    AND A.COD_CTA IN
+	    (
+	        SELECT 
+	        	COD_CTA
+	        FROM SAF.CON_DETALLE_PLANTILLA_NOTAS
+	        WHERE ID_PLANTILLA = P_ID_PLANTILLA
+	        AND ID_PADRE = P_ID_PADRE
+	        AND ES_AGRUPADOR = 'N'
+	    )
+	    GROUP BY CODIGO_CC, NOMBRE_CC, EJERCICIO
+	)
+	SELECT
+	    CODIGO_CC,
+	    NOMBRE_CC,
+	    SUM(TOTAL_1) AS TOTAL_1,
+	    SUM(TOTAL_2) AS TOTAL_2
+	FROM AGRUPADOR_CUENTAS
+	GROUP BY CODIGO_CC, NOMBRE_CC;
+   
+   CURSOR C_CENTRO_COSTO_AGRUPADOR 
+   (P_ANIO NUMBER, P_EMPRESA VARCHAR2, P_FINICIO NUMBER, P_FFIN NUMBER, P_ID_PLANTILLA NUMBER, P_ID_PADRE NUMBER, P_AGRUPADOR NUMBER) IS
+   WITH AGRUPADOR_CUENTAS AS
+	(
+		SELECT
+            CODIGO_CC,
+			NOMBRE_CC,
+			SUM(TOTAL_1) AS TOTAL_1,
+			SUM(TOTAL_2) AS TOTAL_2
+        FROM 
+        (
+            SELECT
+				CODIGO_CC,
+				NOMBRE_CC,
+				(
+					CASE WHEN EJERCICIO = TO_NUMBER(P_ANIO) THEN
+						NVL(SUM(VALOR), 0)
+					ELSE
+						0
+					END
+				) AS TOTAL_1,
+				(
+					CASE WHEN EJERCICIO = (TO_NUMBER(P_ANIO) - 1) THEN
+						NVL(SUM(VALOR), 0)
+					ELSE
+						0
+					END
+				) AS TOTAL_2
+			FROM SAF.APX_VW_CON_NOTAS_POLIZASD A 
+			WHERE A.CODIGO_EMPRESA IN
+            (
+                SELECT 
+                    REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                FROM 
+                    dual CONNECT BY REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) IS NOT NULL
+            )
+			AND A.EJERCICIO BETWEEN (TO_NUMBER(P_ANIO) - 1) AND TO_NUMBER(P_ANIO)
+			AND A.MES BETWEEN P_FINICIO AND P_FFIN
+			AND A.COD_CTA IN
+			(
+				SELECT 
+					COD_CTA
+				FROM SAF.CON_DETALLE_PLANTILLA_NOTAS
+				WHERE ID_PLANTILLA = P_ID_PLANTILLA
+				AND ID_PADRE = P_ID_PADRE
+				AND ES_AGRUPADOR = 'N'
+			)
+			GROUP BY CODIGO_CC, NOMBRE_CC, EJERCICIO
+        ) GROUP BY CODIGO_CC, NOMBRE_CC
+	)
+    SELECT
+    	TO_CHAR(CODIGO_CC) NUMERO_CUENTA,
+    	NOMBRE_CC,
+    	TOTAL_1,
+    	TOTAL_2
+    FROM AGRUPADOR_CUENTAS
+    WHERE (ABS(TOTAL_1) >= P_AGRUPADOR OR ABS(TOTAL_2) >= P_AGRUPADOR)
+    UNION ALL
+    SELECT
+    	'AGRUPACION' NUMERO_CUENTA,
+    	('Cuentas por Cobrar Menores a ' || P_AGRUPADOR) NOMBRE,
+    	SUM(TOTAL_1) TOTAL_1,
+    	SUM(TOTAL_2) TOTAL_2
+    FROM AGRUPADOR_CUENTAS
+    WHERE (ABS(TOTAL_1) <= P_AGRUPADOR OR ABS(TOTAL_2) <= P_AGRUPADOR)
+    AND CODIGO_CC NOT IN
+    (
+    	SELECT
+    		DISTINCT
+    		CODIGO_CC
+    	FROM AGRUPADOR_CUENTAS
+    	WHERE (ABS(TOTAL_1) >= P_AGRUPADOR OR ABS(TOTAL_2) >= P_AGRUPADOR)
+    );
+   
+   CURSOR C_PROYECTO_SIN_AGRUPADOR 
+   (P_ANIO NUMBER, P_EMPRESA VARCHAR2, P_FINICIO NUMBER, P_FFIN NUMBER, P_INTERCOMPANY VARCHAR) IS
+   SELECT
+        NUMERO_CUENTA,
+        NOMBRE,
+        SUM(TOTAL_1) TOTAL_1,
+        SUM(TOTAL_2) TOTAL_2
+    FROM
+    (
+        SELECT 
+        	NUMERO_CUENTA,
+        	FNC_GET_NOMBRE_CLIENTE(CODIGO_EMPRESA, NUMERO_CUENTA) NOMBRE,
+        	(
+        		CASE WHEN ANIO = TO_NUMBER(P_ANIO) THEN
+        			NVL(SUM(ABONO_LOCAL), 0) - NVL(SUM(PAGO), 0)
+        		ELSE
+        			0
+        		END
+        	) AS TOTAL_1,
+        	(
+        		CASE WHEN ANIO = (TO_NUMBER(P_ANIO) - 1) THEN
+        			NVL(SUM(ABONO_LOCAL), 0) - NVL(SUM(PAGO), 0)
+        		ELSE
+        			0
+        		END
+        	) AS TOTAL_2
+        FROM 
+        (
+        	SELECT 
+                A.CODIGO_EMPRESA,
+        		TO_NUMBER(TO_CHAR(A.FECHA_TRANSACCION, 'YYYY')) ANIO,
+        		A.NUMERO_CUENTA, 
+        		ABONO_LOCAL,
+        	    NVL((SELECT SUM(CASE WHEN CODIGO_MONEDA = 1 THEN
+        		            VALOR
+        		       ELSE
+        		            VALOR_USD
+        		       END) VALOR
+        		  FROM CXC_DESGLOSE CD 
+        		 WHERE CD.CODIGO_EMPRESA =A.CODIGO_EMPRESA
+        		 AND ID_TRANSACCION = A.ID_TRANSACCION
+        		 AND TO_NUMBER(TO_CHAR(FECHA_COBRO, 'YYYY')) BETWEEN (TO_NUMBER(P_ANIO) - 1) AND TO_NUMBER(P_ANIO)
+        		 AND TO_NUMBER(TO_CHAR(FECHA_COBRO, 'MM')) BETWEEN TO_NUMBER(P_FINICIO) AND TO_NUMBER(P_FFIN)
+        		 AND CODIGO_MONEDA = 1),0) PAGO,
+        		C.INTERCOMPANY 
+        	FROM CXC_TRANSACCIONES A, GRAL_TIPOS_TRANSAC_MODULOS B, CXC_CUENTAS C
+        	WHERE A.CODIGO_EMPRESA IN
+            (
+                SELECT 
+                    REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                FROM 
+                    dual CONNECT BY REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) IS NOT NULL
+            )
+            AND TO_NUMBER(TO_CHAR(A.FECHA_TRANSACCION, 'YYYY')) BETWEEN (TO_NUMBER(P_ANIO) - 1) AND TO_NUMBER(P_ANIO)
+    		AND TO_NUMBER(TO_CHAR(A.FECHA_TRANSACCION, 'MM')) BETWEEN TO_NUMBER(P_FINICIO) AND TO_NUMBER(P_FFIN)
+        	AND B.CARGO_ABONO = 'A'
+        	AND A.TIPO_TRANSACCION = B.TIPO_TRANSACCION 
+        	AND A.CODIGO_EMPRESA = C.CODIGO_EMPRESA
+        	AND A.NUMERO_CUENTA = C.NUMERO_CUENTA
+        	AND A.FECHA_ANULACION IS NULL
+        	AND NVL(C.INTERCOMPANY, 'N') = P_INTERCOMPANY
+        )
+        GROUP BY CODIGO_EMPRESA, NUMERO_CUENTA, ANIO
+    ) GROUP BY NUMERO_CUENTA, NOMBRE;
+   
+   CURSOR C_PROYECTO_AGRUPADOR 
+   (P_ANIO NUMBER, P_EMPRESA VARCHAR2, P_FINICIO NUMBER, P_FFIN NUMBER, P_AGRUPADOR NUMBER, P_INTERCOMPANY VARCHAR) IS
+   WITH DATOS AS
+	(
+	SELECT 
+		NUMERO_CUENTA,
+		FNC_GET_NOMBRE_CLIENTE(TO_NUMBER(CODIGO_EMPRESA), NUMERO_CUENTA) NOMBRE,
+		(
+			CASE WHEN ANIO = TO_NUMBER(P_ANIO) THEN
+				NVL(SUM(ABONO_LOCAL), 0) - NVL(SUM(PAGO), 0)
+			ELSE
+				0
+			END
+		) AS TOTAL_1,
+		(
+			CASE WHEN ANIO = (TO_NUMBER(P_ANIO) - 1) THEN
+				NVL(SUM(ABONO_LOCAL), 0) - NVL(SUM(PAGO), 0)
+			ELSE
+				0
+			END
+		) AS TOTAL_2
+	FROM 
+	(
+		SELECT 
+            A.CODIGO_EMPRESA,
+			TO_NUMBER(TO_CHAR(A.FECHA_TRANSACCION, 'YYYY')) ANIO,
+			A.NUMERO_CUENTA, 
+			ABONO_LOCAL,
+		    NVL((SELECT SUM(CASE WHEN CODIGO_MONEDA = 1 THEN
+			            VALOR
+			       ELSE
+			            VALOR_USD
+			       END) VALOR
+			  FROM CXC_DESGLOSE CD 
+			 WHERE CD.CODIGO_EMPRESA =A.CODIGO_EMPRESA
+			 AND ID_TRANSACCION = A.ID_TRANSACCION
+			 AND TO_NUMBER(TO_CHAR(FECHA_COBRO, 'YYYY')) BETWEEN (TO_NUMBER(P_ANIO) - 1) AND TO_NUMBER(P_ANIO)
+			 AND TO_NUMBER(TO_CHAR(FECHA_COBRO, 'MM')) BETWEEN TO_NUMBER(P_FINICIO) AND TO_NUMBER(P_FFIN)
+			 AND CODIGO_MONEDA = 1),0) PAGO,
+			C.INTERCOMPANY 
+		FROM CXC_TRANSACCIONES A, GRAL_TIPOS_TRANSAC_MODULOS B, CXC_CUENTAS C
+		WHERE A.CODIGO_EMPRESA IN
+        (
+            SELECT 
+                REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+            FROM 
+                dual CONNECT BY REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) IS NOT NULL
+        )
+		AND TO_NUMBER(TO_CHAR(A.FECHA_TRANSACCION, 'YYYY')) BETWEEN (TO_NUMBER(P_ANIO) - 1) AND TO_NUMBER(P_ANIO)
+		AND TO_NUMBER(TO_CHAR(A.FECHA_TRANSACCION, 'MM')) BETWEEN TO_NUMBER(P_FINICIO) AND TO_NUMBER(P_FFIN)
+		AND B.CARGO_ABONO = 'A'
+		AND A.TIPO_TRANSACCION = B.TIPO_TRANSACCION 
+		AND A.CODIGO_EMPRESA = C.CODIGO_EMPRESA
+		AND A.NUMERO_CUENTA = C.NUMERO_CUENTA
+		AND A.FECHA_ANULACION IS NULL
+		AND NVL(C.INTERCOMPANY, 'N') = P_INTERCOMPANY
+	)
+	GROUP BY CODIGO_EMPRESA, NUMERO_CUENTA, ANIO
+	)
+	SELECT
+		TO_CHAR(NUMERO_CUENTA) NUMERO_CUENTA,
+		NOMBRE,
+		TOTAL_1,
+		TOTAL_2
+	FROM DATOS
+	WHERE (ABS(TOTAL_1) >= P_AGRUPADOR OR ABS(TOTAL_2) >= P_AGRUPADOR)
+	UNION ALL
+	SELECT
+		'AGRUPACION' NUMERO_CUENTA,
+		('Cuentas por Cobrar Menores a ' || P_AGRUPADOR) NOMBRE,
+		SUM(TOTAL_1) TOTAL_1,
+		SUM(TOTAL_2) TOTAL_2
+	FROM DATOS
+	WHERE (ABS(TOTAL_1) <= P_AGRUPADOR OR ABS(TOTAL_2) <= P_AGRUPADOR)
+	AND NUMERO_CUENTA NOT IN
+	(
+		SELECT
+			DISTINCT
+			NUMERO_CUENTA
+		FROM DATOS
+		WHERE (ABS(TOTAL_1) >= P_AGRUPADOR OR ABS(TOTAL_2) >= P_AGRUPADOR)
+	);
+   
+   CURSOR C_CUENTA_CONTABLE_SIN_AGRUPADOR
+   (P_ANIO NUMBER, P_EMPRESA VARCHAR2, P_FINICIO NUMBER, P_FFIN NUMBER, P_ID_PLANTILLA NUMBER, P_ID_PADRE NUMBER) IS
+   WITH AGRUPADOR_CUENTAS AS
+    (
+    	SELECT
+    		COD_CTA,
+        	NOMBRE_CTA,
+        	(
+        		CASE WHEN EJERCICIO = TO_NUMBER(P_ANIO) THEN
+        			NVL(SUM(VALOR), 0)
+        		ELSE
+        			0
+        		END
+        	) AS TOTAL_1,
+        	(
+        		CASE WHEN EJERCICIO = (TO_NUMBER(P_ANIO) - 1) THEN
+        			NVL(SUM(VALOR), 0)
+        		ELSE
+        			0
+        		END
+        	) AS TOTAL_2
+    	FROM SAF.APX_VW_CON_NOTAS_POLIZASD A 
+    	WHERE A.CODIGO_EMPRESA IN
+        (
+            SELECT 
+                REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+            FROM 
+                dual CONNECT BY REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) IS NOT NULL
+        )
+        AND A.EJERCICIO BETWEEN (TO_NUMBER(P_ANIO) - 1) AND TO_NUMBER(P_ANIO)
+    	AND A.MES BETWEEN P_FINICIO AND P_FFIN
+    	AND A.COD_CTA IN
+    	(
+    		SELECT 
+            	COD_CTA
+            FROM SAF.CON_DETALLE_PLANTILLA_NOTAS
+            WHERE ID_PLANTILLA = P_ID_PLANTILLA
+            AND ID_PADRE = P_ID_PADRE
+            AND ES_AGRUPADOR = 'N'
+    	)
+    	GROUP BY COD_CTA, NOMBRE_CTA, EJERCICIO
+    )
+    SELECT
+        COD_CTA,
+        NOMBRE_CTA,
+        SUM(TOTAL_1) AS TOTAL_1,
+        SUM(TOTAL_2) AS TOTAL_2
+    FROM AGRUPADOR_CUENTAS
+    GROUP BY COD_CTA, NOMBRE_CTA;
+   
+   CURSOR C_CUENTA_CONTABLE_AGRUPADOR 
+   (P_ANIO NUMBER, P_EMPRESA VARCHAR2, P_FINICIO NUMBER, P_FFIN NUMBER, P_ID_PLANTILLA NUMBER, P_ID_PADRE NUMBER, P_AGRUPADOR NUMBER) IS
+   WITH AGRUPADOR_CUENTAS AS
+    (
+    	SELECT 
+            COD_CTA,
+            NOMBRE_CTA,
+            SUM(TOTAL_1) AS TOTAL_1,
+            SUM(TOTAL_2) AS TOTAL_2
+        FROM 
+        (
+            SELECT
+                COD_CTA,
+                NOMBRE_CTA,
+                (
+                    CASE WHEN EJERCICIO = TO_NUMBER(P_ANIO) THEN
+                        NVL(SUM(VALOR), 0)
+                    ELSE
+                        0
+                    END
+                ) AS TOTAL_1,
+                (
+                    CASE WHEN EJERCICIO = (TO_NUMBER(P_ANIO) - 1) THEN
+                        NVL(SUM(VALOR), 0)
+                    ELSE
+                        0
+                    END
+                ) AS TOTAL_2
+            FROM SAF.APX_VW_CON_NOTAS_POLIZASD A 
+            WHERE A.CODIGO_EMPRESA IN
+            (
+                SELECT 
+                    REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                FROM 
+                    dual CONNECT BY REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) IS NOT NULL
+            )
+            AND A.EJERCICIO BETWEEN (TO_NUMBER(P_ANIO) - 1) AND TO_NUMBER(P_ANIO)
+            AND A.MES BETWEEN P_FINICIO AND P_FFIN
+            AND A.COD_CTA IN
+            (
+                SELECT 
+                    COD_CTA
+                FROM SAF.CON_DETALLE_PLANTILLA_NOTAS
+                WHERE ID_PLANTILLA = P_ID_PLANTILLA
+                AND ID_PADRE = P_ID_PADRE
+                AND ES_AGRUPADOR = 'N'
+            )
+            GROUP BY COD_CTA, NOMBRE_CTA, EJERCICIO
+        ) GROUP BY COD_CTA, NOMBRE_CTA
+    )
+    SELECT
+    	TO_CHAR(COD_CTA) COD_CTA,
+    	NOMBRE_CTA,
+    	TOTAL_1,
+    	TOTAL_2
+    FROM AGRUPADOR_CUENTAS
+    WHERE (ABS(TOTAL_1) >= P_AGRUPADOR OR ABS(TOTAL_2) >= P_AGRUPADOR)
+    UNION ALL
+    SELECT
+    	'AGRUPACION' COD_CTA,
+    	('Cuentas por Liquidar Menores a ' || P_AGRUPADOR) NOMBRE_CTA,
+    	SUM(TOTAL_1) TOTAL_1,
+    	SUM(TOTAL_2) TOTAL_2
+    FROM AGRUPADOR_CUENTAS
+    WHERE (ABS(TOTAL_1) <= P_AGRUPADOR OR ABS(TOTAL_2) <= P_AGRUPADOR)
+    AND COD_CTA NOT IN
+    (
+    	SELECT
+    		DISTINCT
+    		COD_CTA
+    	FROM AGRUPADOR_CUENTAS
+    	WHERE (ABS(TOTAL_1) >= P_AGRUPADOR OR ABS(TOTAL_2) >= P_AGRUPADOR)
+        AND COD_CTA IS NOT NULL
+    );
+   
+   CURSOR C_PERSONAL_SIN_AGRUPADOR
+   (P_ANIO NUMBER, P_EMPRESA VARCHAR2, P_FINICIO NUMBER, P_FFIN NUMBER, P_ID_PLANTILLA NUMBER, P_ID_PADRE NUMBER) IS
+   WITH AGRUPADOR_CUENTAS AS
+	(
+		SELECT
+			CODIGO_EMPLEADO,
+	    	NOMBRE_EMPLEADO,
+	    	(
+	    		CASE WHEN EJERCICIO = TO_NUMBER(P_ANIO) THEN
+	    			NVL(SUM(VALOR), 0)
+	    		ELSE
+	    			0
+	    		END
+	    	) AS TOTAL_1,
+	    	(
+	    		CASE WHEN EJERCICIO = (TO_NUMBER(P_ANIO) - 1) THEN
+	    			NVL(SUM(VALOR), 0)
+	    		ELSE
+	    			0
+	    		END
+	    	) AS TOTAL_2
+		FROM SAF.APX_VW_CON_NOTAS_POLIZASD A 
+		WHERE A.CODIGO_EMPRESA IN
+        (
+            SELECT 
+                REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+            FROM 
+                dual CONNECT BY REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) IS NOT NULL
+        )
+	    AND A.EJERCICIO BETWEEN (TO_NUMBER(P_ANIO) - 1) AND TO_NUMBER(P_ANIO)
+		AND A.MES BETWEEN P_FINICIO AND P_FFIN
+		AND A.COD_CTA IN
+		(
+			SELECT 
+	        	COD_CTA
+	        FROM SAF.CON_DETALLE_PLANTILLA_NOTAS
+	        WHERE ID_PLANTILLA = P_ID_PLANTILLA
+	        AND ID_PADRE = P_ID_PADRE
+	        AND ES_AGRUPADOR = 'N'
+		)
+		GROUP BY CODIGO_EMPLEADO, NOMBRE_EMPLEADO, EJERCICIO
+	)
+	SELECT
+	    CODIGO_EMPLEADO,
+	    NOMBRE_EMPLEADO,
+	    SUM(TOTAL_1) AS TOTAL_1,
+	    SUM(TOTAL_2) AS TOTAL_2
+	FROM AGRUPADOR_CUENTAS
+	GROUP BY CODIGO_EMPLEADO, NOMBRE_EMPLEADO;
+   
+   CURSOR C_PERSONAL_AGRUPADOR 
+   (P_ANIO NUMBER, P_EMPRESA VARCHAR2, P_FINICIO NUMBER, P_FFIN NUMBER, P_ID_PLANTILLA NUMBER, P_ID_PADRE NUMBER, P_AGRUPADOR NUMBER) IS
+   WITH AGRUPADOR_CUENTAS AS
+    (
+    	SELECT
+    		CODIGO_EMPLEADO,
+    	    NOMBRE_EMPLEADO,
+    	    SUM(TOTAL_1) AS TOTAL_1,
+    	    SUM(TOTAL_2) AS TOTAL_2
+    	FROM
+    	(
+    		SELECT
+    			CODIGO_EMPLEADO,
+    	    	NOMBRE_EMPLEADO,
+    	    	(
+    	    		CASE WHEN EJERCICIO = TO_NUMBER(P_ANIO) THEN
+    	    			NVL(SUM(VALOR), 0)
+    	    		ELSE
+    	    			0
+    	    		END
+    	    	) AS TOTAL_1,
+    	    	(
+    	    		CASE WHEN EJERCICIO = (TO_NUMBER(P_ANIO) - 1) THEN
+    	    			NVL(SUM(VALOR), 0)
+    	    		ELSE
+    	    			0
+    	    		END
+    	    	) AS TOTAL_2
+    		FROM SAF.APX_VW_CON_NOTAS_POLIZASD A 
+    		WHERE A.CODIGO_EMPRESA IN
+            (
+                SELECT 
+                    REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                FROM 
+                    dual CONNECT BY REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) IS NOT NULL
+            )
+    	    AND A.EJERCICIO BETWEEN (TO_NUMBER(P_ANIO) - 1) AND TO_NUMBER(P_ANIO)
+    		AND A.MES BETWEEN P_FINICIO AND P_FFIN
+    		AND A.COD_CTA IN
+    		(
+    			SELECT 
+                	COD_CTA
+                FROM SAF.CON_DETALLE_PLANTILLA_NOTAS
+                WHERE ID_PLANTILLA = P_ID_PLANTILLA
+                AND ID_PADRE = P_ID_PADRE
+                AND ES_AGRUPADOR = 'N'
+    		)
+    		GROUP BY CODIGO_EMPLEADO, NOMBRE_EMPLEADO, EJERCICIO
+    	) GROUP BY CODIGO_EMPLEADO, NOMBRE_EMPLEADO	
+    )
+    SELECT
+    	TO_CHAR(CODIGO_EMPLEADO) CODIGO_EMPLEADO,
+    	NOMBRE_EMPLEADO,
+    	TOTAL_1,
+    	TOTAL_2
+    FROM AGRUPADOR_CUENTAS
+    WHERE (ABS(TOTAL_1) >= P_AGRUPADOR OR ABS(TOTAL_2) >= P_AGRUPADOR)
+    UNION ALL
+    SELECT
+    	'AGRUPACION' CODIGO_EMPLEADO,
+    	('Cuentas por Liquidar Menores a ' || P_AGRUPADOR) NOMBRE_EMPLEADO,
+    	SUM(TOTAL_1) TOTAL_1,
+    	SUM(TOTAL_2) TOTAL_2
+    FROM AGRUPADOR_CUENTAS
+    WHERE (ABS(TOTAL_1) <= P_AGRUPADOR OR ABS(TOTAL_2) <= P_AGRUPADOR)
+    AND CODIGO_EMPLEADO NOT IN
+    (
+    	SELECT
+    		DISTINCT
+    		CODIGO_EMPLEADO
+    	FROM AGRUPADOR_CUENTAS
+    	WHERE (ABS(TOTAL_1) >= P_AGRUPADOR OR ABS(TOTAL_2) >= P_AGRUPADOR)
+        AND CODIGO_EMPLEADO IS NOT NULL
+    );
+   
+   CURSOR C_PROVEEDOR_SIN_AGRUPADOR
+   (P_ANIO NUMBER, P_EMPRESA VARCHAR2, P_FINICIO NUMBER, P_FFIN NUMBER, P_ID_PLANTILLA NUMBER, P_ID_PADRE NUMBER) IS
+   WITH AGRUPADOR_CUENTAS AS
+	(
+		SELECT
+			CODIGO_PROVEEDOR,
+	    	NOMBRE_PROVEEDOR,
+	    	(
+	    		CASE WHEN EJERCICIO = P_ANIO THEN
+	    			NVL(SUM(VALOR), 0)
+	    		ELSE
+	    			0
+	    		END
+	    	) AS TOTAL_1,
+	    	(
+	    		CASE WHEN EJERCICIO = (TO_NUMBER(P_ANIO) - 1) THEN
+	    			NVL(SUM(VALOR), 0)
+	    		ELSE
+	    			0
+	    		END
+	    	) AS TOTAL_2
+		FROM SAF.APX_VW_CON_NOTAS_POLIZASD A 
+		WHERE A.CODIGO_EMPRESA IN
+        (
+            SELECT 
+                REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+            FROM 
+                dual CONNECT BY REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) IS NOT NULL
+        )
+	    AND A.EJERCICIO BETWEEN (TO_NUMBER(P_ANIO) - 1) AND P_ANIO
+		AND A.MES BETWEEN P_FINICIO AND P_FFIN
+	    AND A.CODIGO_PROVEEDOR IS NOT NULL
+	    AND A.CODIGO_PROVEEDOR > 0
+		AND A.COD_CTA IN
+		(
+			SELECT 
+	        	COD_CTA
+	        FROM SAF.CON_DETALLE_PLANTILLA_NOTAS
+	        WHERE ID_PLANTILLA = P_ID_PLANTILLA
+	        AND ID_PADRE = P_ID_PADRE
+	        AND ES_AGRUPADOR = 'N'
+		)
+		GROUP BY CODIGO_PROVEEDOR, NOMBRE_PROVEEDOR, EJERCICIO
+	)
+	SELECT
+	    CODIGO_PROVEEDOR,
+	    NOMBRE_PROVEEDOR,
+	    SUM(TOTAL_1) AS TOTAL_1,
+	    SUM(TOTAL_2) AS TOTAL_2
+	FROM AGRUPADOR_CUENTAS
+	GROUP BY CODIGO_PROVEEDOR, NOMBRE_PROVEEDOR;
+   
+   CURSOR C_PROVEEDOR_AGRUPADOR 
+   (P_ANIO NUMBER, P_EMPRESA VARCHAR2, P_FINICIO NUMBER, P_FFIN NUMBER, P_ID_PLANTILLA NUMBER, P_ID_PADRE NUMBER, P_AGRUPADOR NUMBER) IS
+   	WITH AGRUPADOR_CUENTAS AS
+    (
+        SELECT
+            CODIGO_PROVEEDOR,
+            NOMBRE_PROVEEDOR,
+            SUM(TOTAL_1) AS TOTAL_1,
+            SUM(TOTAL_2) AS TOTAL_2
+        FROM
+        (
+            SELECT
+                CODIGO_PROVEEDOR,
+                NOMBRE_PROVEEDOR,
+                (
+                    CASE WHEN EJERCICIO = P_ANIO THEN
+                        NVL(SUM(VALOR), 0)
+                    ELSE
+                        0
+                    END
+                ) AS TOTAL_1,
+                (
+                    CASE WHEN EJERCICIO = (TO_NUMBER(P_ANIO) - 1) THEN
+                        NVL(SUM(VALOR), 0)
+                    ELSE
+                        0
+                    END
+                ) AS TOTAL_2
+            FROM SAF.APX_VW_CON_NOTAS_POLIZASD A 
+            WHERE A.CODIGO_EMPRESA IN
+            (
+                SELECT 
+                    REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                FROM 
+                    dual CONNECT BY REGEXP_SUBSTR(P_EMPRESA, '[^\:]+', 1, level) IS NOT NULL
+            )
+            AND A.EJERCICIO BETWEEN (TO_NUMBER(P_ANIO) - 1) AND P_ANIO
+            AND A.MES BETWEEN P_FINICIO AND P_FFIN
+            AND A.CODIGO_PROVEEDOR IS NOT NULL
+            AND A.CODIGO_PROVEEDOR > 0
+            AND A.COD_CTA IN
+            (
+                SELECT 
+                    COD_CTA
+                FROM SAF.CON_DETALLE_PLANTILLA_NOTAS
+                WHERE ID_PLANTILLA = P_ID_PLANTILLA
+                AND ID_PADRE = P_ID_PADRE
+                AND ES_AGRUPADOR = 'N'
+            )
+            GROUP BY CODIGO_PROVEEDOR, NOMBRE_PROVEEDOR, EJERCICIO
+        ) GROUP BY CODIGO_PROVEEDOR, NOMBRE_PROVEEDOR
+    )
+    SELECT
+        TO_CHAR(CODIGO_PROVEEDOR) CODIGO_PROVEEDOR,
+        NOMBRE_PROVEEDOR,
+        TOTAL_1,
+        TOTAL_2
+    FROM AGRUPADOR_CUENTAS
+    WHERE (ABS(TOTAL_1) >= P_AGRUPADOR OR ABS(TOTAL_2) >= P_AGRUPADOR)
+    UNION ALL
+    SELECT
+        'AGRUPACION' CODIGO_PROVEEDOR,
+        ('Cuentas por Liquidar Menores a ' || P_AGRUPADOR) NOMBRE_PROVEEDOR,
+        SUM(TOTAL_1) TOTAL_1,
+        SUM(TOTAL_2) TOTAL_2
+    FROM AGRUPADOR_CUENTAS
+    WHERE (ABS(TOTAL_1) <= P_AGRUPADOR OR ABS(TOTAL_2) <= P_AGRUPADOR)
+    AND CODIGO_PROVEEDOR NOT IN
+    (
+        SELECT
+            DISTINCT
+            CODIGO_PROVEEDOR
+        FROM AGRUPADOR_CUENTAS
+        WHERE (ABS(TOTAL_1) >= P_AGRUPADOR OR ABS(TOTAL_2) >= P_AGRUPADOR)
+    );
+   
+BEGIN
+	IF V_AGRUPADOR = 1 THEN
+		IF V_AGRUPAR_MENOR_A > 0 THEN
+			FOR R_DATOS IN C_CUENTA_CONTABLE_AGRUPADOR(V_ANIO, V_EMPRESA, V_MES_INICIO, V_MES_FIN, V_ID_PLANTILLA, V_ID_PADRE, V_AGRUPAR_MENOR_A)
+			LOOP
+				V_T_DETALLE_NOTAS.EXTEND;
+				V_T_DETALLE_NOTAS(V_T_DETALLE_NOTAS.LAST) := CON_OBJECT_DETALLE_NOTAS
+				(
+					R_DATOS.COD_CTA,
+					SAF.FNC_NCTA(NULL, NULL, R_DATOS.COD_CTA, V_VERSION),
+					R_DATOS.TOTAL_1,
+					R_DATOS.TOTAL_2
+				);
+			END LOOP;
+		ELSE
+			FOR R_DATOS IN C_CUENTA_CONTABLE_SIN_AGRUPADOR(V_ANIO, V_EMPRESA, V_MES_INICIO, V_MES_FIN, V_ID_PLANTILLA, V_ID_PADRE)
+			LOOP
+				V_T_DETALLE_NOTAS.EXTEND;
+				V_T_DETALLE_NOTAS(V_T_DETALLE_NOTAS.LAST) := CON_OBJECT_DETALLE_NOTAS
+				(
+					R_DATOS.COD_CTA,
+					SAF.FNC_NCTA(NULL, NULL, R_DATOS.COD_CTA, V_VERSION),
+					R_DATOS.TOTAL_1,
+					R_DATOS.TOTAL_2
+				);
+			END LOOP;
+		END IF;
+	ELSIF V_AGRUPADOR = 2 THEN
+		FOR R_GRUPOS_IE IN C_GRUPOS_IE(V_ID_PLANTILLA, V_ID_PADRE)
+		LOOP
+			IF R_GRUPOS_IE.TODOS_LOS_REGISTROS = 'S' THEN
+				DECLARE
+					CURSOR C_CUENTAS IS
+						WITH AGRUPADOR_CUENTAS AS
+                        (
+                            SELECT
+                                CODIGO_GASTO,
+                                NOMBRE_GASTO,
+                                (
+                                    CASE WHEN EJERCICIO = TO_NUMBER(V_ANIO) THEN
+                                        NVL(SUM(VALOR), 0)
+                                    ELSE
+                                        0
+                                    END
+                                ) AS TOTAL_1,
+                                (
+                                    CASE WHEN EJERCICIO = (TO_NUMBER(V_ANIO) - 1) THEN
+                                        NVL(SUM(VALOR), 0)
+                                    ELSE
+                                        0
+                                    END
+                                ) AS TOTAL_2
+                            FROM SAF.APX_VW_CON_NOTAS_POLIZASD A 
+                            WHERE A.CODIGO_EMPRESA IN
+                            (
+                                SELECT 
+                                    REGEXP_SUBSTR(V_EMPRESA, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                                FROM 
+                                    dual CONNECT BY REGEXP_SUBSTR(V_EMPRESA, '[^\:]+', 1, level) IS NOT NULL
+                            )
+                            AND A.EJERCICIO BETWEEN (TO_NUMBER(V_ANIO) - 1) AND TO_NUMBER(V_ANIO)
+                            AND A.MES BETWEEN V_MES_INICIO AND V_MES_FIN
+                            AND A.COD_CTA = R_GRUPOS_IE.COD_CTA
+                            GROUP BY CODIGO_GASTO, NOMBRE_GASTO, EJERCICIO
+                        )
+                        SELECT
+                            CODIGO_GASTO,
+                            NOMBRE_GASTO,
+                            SUM(TOTAL_1) AS TOTAL_1,
+                            SUM(TOTAL_2) AS TOTAL_2
+                        FROM AGRUPADOR_CUENTAS
+                        GROUP BY CODIGO_GASTO, NOMBRE_GASTO;
+				BEGIN
+					FOR R_CUENTAS IN C_CUENTAS
+					LOOP
+						V_TEMP_DETALLE_NOTAS.EXTEND;
+						V_TEMP_DETALLE_NOTAS(V_TEMP_DETALLE_NOTAS.LAST) := CON_OBJECT_DETALLE_NOTAS
+						(
+							R_CUENTAS.CODIGO_GASTO,
+							R_CUENTAS.NOMBRE_GASTO,
+							R_CUENTAS.TOTAL_1,
+							R_CUENTAS.TOTAL_2
+						);
+					END LOOP;
+				END;
+			ELSE
+				DECLARE
+					CURSOR C_CUENTAS IS
+						WITH AGRUPADOR_CUENTAS AS
+                        (
+                            SELECT
+                                CODIGO_GASTO,
+                                NOMBRE_GASTO,
+                                (
+                                    CASE WHEN EJERCICIO = TO_NUMBER(V_ANIO) THEN
+                                        NVL(SUM(VALOR), 0)
+                                    ELSE
+                                        0
+                                    END
+                                ) AS TOTAL_1,
+                                (
+                                    CASE WHEN EJERCICIO = (TO_NUMBER(V_ANIO) - 1) THEN
+                                        NVL(SUM(VALOR), 0)
+                                    ELSE
+                                        0
+                                    END
+                                ) AS TOTAL_2
+                            FROM SAF.APX_VW_CON_NOTAS_POLIZASD A 
+                            WHERE A.CODIGO_EMPRESA IN 
+                            (
+                                SELECT 
+                                    REGEXP_SUBSTR(V_EMPRESA, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                                FROM 
+                                    dual CONNECT BY REGEXP_SUBSTR(V_EMPRESA, '[^\:]+', 1, level) IS NOT NULL
+                            )
+                            AND A.EJERCICIO BETWEEN (TO_NUMBER(V_ANIO) - 1) AND TO_NUMBER(V_ANIO)
+                            AND A.MES BETWEEN V_MES_INICIO AND V_MES_FIN
+                            AND A.COD_CTA = R_GRUPOS_IE.COD_CTA
+                            AND A.CODIGO_GASTO = R_GRUPOS_IE.CODIGO_GASTO
+                            GROUP BY CODIGO_GASTO, NOMBRE_GASTO, EJERCICIO
+                        )
+                        SELECT
+                            CODIGO_GASTO,
+                            NOMBRE_GASTO,
+                            SUM(TOTAL_1) AS TOTAL_1,
+                            SUM(TOTAL_2) AS TOTAL_2
+                        FROM AGRUPADOR_CUENTAS
+                        GROUP BY CODIGO_GASTO, NOMBRE_GASTO;
+				BEGIN
+					FOR R_CUENTAS IN C_CUENTAS
+					LOOP
+						V_TEMP_DETALLE_NOTAS.EXTEND;
+						V_TEMP_DETALLE_NOTAS(V_TEMP_DETALLE_NOTAS.LAST) := CON_OBJECT_DETALLE_NOTAS
+						(
+							R_CUENTAS.CODIGO_GASTO,
+							R_CUENTAS.NOMBRE_GASTO,
+							R_CUENTAS.TOTAL_1,
+							R_CUENTAS.TOTAL_2
+						);
+					END LOOP;
+				END;
+			END IF;
+		END LOOP;
+	
+		IF V_AGRUPAR_MENOR_A > 0 THEN
+			FOR R_DATOS IN C_CODIGO_GASTO_AGRUPADOR(V_AGRUPAR_MENOR_A)
+			LOOP
+				V_T_DETALLE_NOTAS.EXTEND;
+				V_T_DETALLE_NOTAS(V_T_DETALLE_NOTAS.LAST) := CON_OBJECT_DETALLE_NOTAS
+				(
+					R_DATOS.CODIGO,
+					R_DATOS.NOMBRE,
+					R_DATOS.TOTAL_1,
+					R_DATOS.TOTAL_2
+				);
+			END LOOP;
+		ELSE
+			FOR R_DATOS IN C_CODIGO_GASTO_SIN_AGRUPADOR
+			LOOP
+				V_T_DETALLE_NOTAS.EXTEND;
+				V_T_DETALLE_NOTAS(V_T_DETALLE_NOTAS.LAST) := CON_OBJECT_DETALLE_NOTAS
+				(
+					R_DATOS.CODIGO,
+					R_DATOS.NOMBRE,
+					R_DATOS.TOTAL_1,
+					R_DATOS.TOTAL_2
+				);
+			END LOOP;
+		END IF;
+		NULL;
+	ELSIF V_AGRUPADOR = 3 THEN
+		IF V_AGRUPAR_MENOR_A > 0 THEN
+			FOR R_DATOS IN C_CENTRO_COSTO_AGRUPADOR(V_ANIO, V_EMPRESA, V_MES_INICIO, V_MES_FIN, V_ID_PLANTILLA, V_ID_PADRE, V_AGRUPAR_MENOR_A)
+			LOOP
+				V_T_DETALLE_NOTAS.EXTEND;
+				V_T_DETALLE_NOTAS(V_T_DETALLE_NOTAS.LAST) := CON_OBJECT_DETALLE_NOTAS
+				(
+					R_DATOS.NUMERO_CUENTA,
+					R_DATOS.NOMBRE_CC,
+					R_DATOS.TOTAL_1,
+					R_DATOS.TOTAL_2
+				);
+			END LOOP;
+		ELSE
+			FOR R_DATOS IN C_CENTRO_COSTO_SIN_AGRUPADOR(V_ANIO, V_EMPRESA, V_MES_INICIO, V_MES_FIN, V_ID_PLANTILLA, V_ID_PADRE)
+			LOOP
+				V_T_DETALLE_NOTAS.EXTEND;
+				V_T_DETALLE_NOTAS(V_T_DETALLE_NOTAS.LAST) := CON_OBJECT_DETALLE_NOTAS
+				(
+					R_DATOS.CODIGO_CC,
+					R_DATOS.NOMBRE_CC,
+					R_DATOS.TOTAL_1,
+					R_DATOS.TOTAL_2
+				);
+			END LOOP;
+		END IF;
+	ELSIF V_AGRUPADOR = 4 THEN
+		IF V_AGRUPAR_MENOR_A > 0 THEN
+			FOR R_DATOS IN C_ITEM_AGRUPADOR(V_ANIO, V_EMPRESA, V_MES_INICIO, V_MES_FIN, V_ID_PLANTILLA, V_ID_PADRE, V_AGRUPAR_MENOR_A)
+			LOOP
+				V_T_DETALLE_NOTAS.EXTEND;
+				V_T_DETALLE_NOTAS(V_T_DETALLE_NOTAS.LAST) := CON_OBJECT_DETALLE_NOTAS
+				(
+					R_DATOS.NUMERO_CUENTA,
+					R_DATOS.CONCEPTO,
+					R_DATOS.TOTAL_1,
+					R_DATOS.TOTAL_2
+				);
+			END LOOP;
+		ELSE
+			FOR R_DATOS IN C_ITEM_SIN_AGRUPADOR(V_ANIO, V_EMPRESA, V_MES_INICIO, V_MES_FIN, V_ID_PLANTILLA, V_ID_PADRE)
+			LOOP
+				V_T_DETALLE_NOTAS.EXTEND;
+				V_T_DETALLE_NOTAS(V_T_DETALLE_NOTAS.LAST) := CON_OBJECT_DETALLE_NOTAS
+				(
+					R_DATOS.COD_CTA,
+					R_DATOS.CONCEPTO,
+					R_DATOS.TOTAL_1,
+					R_DATOS.TOTAL_2
+				);
+			END LOOP;
+		END IF;
+	ELSIF V_AGRUPADOR = 5 THEN
+		IF V_AGRUPAR_MENOR_A > 0 THEN
+			FOR R_DATOS IN C_PROVEEDOR_AGRUPADOR(V_ANIO, V_EMPRESA, V_MES_INICIO, V_MES_FIN, V_ID_PLANTILLA, V_ID_PADRE, V_AGRUPAR_MENOR_A)
+			LOOP
+				V_T_DETALLE_NOTAS.EXTEND;
+				V_T_DETALLE_NOTAS(V_T_DETALLE_NOTAS.LAST) := CON_OBJECT_DETALLE_NOTAS
+				(
+					R_DATOS.CODIGO_PROVEEDOR,
+					R_DATOS.NOMBRE_PROVEEDOR,
+					R_DATOS.TOTAL_1,
+					R_DATOS.TOTAL_2
+				);
+			END LOOP;
+		ELSE
+			FOR R_DATOS IN C_PROVEEDOR_SIN_AGRUPADOR(V_ANIO, V_EMPRESA, V_MES_INICIO, V_MES_FIN, V_ID_PLANTILLA, V_ID_PADRE)
+			LOOP
+				V_T_DETALLE_NOTAS.EXTEND;
+				V_T_DETALLE_NOTAS(V_T_DETALLE_NOTAS.LAST) := CON_OBJECT_DETALLE_NOTAS
+				(
+					R_DATOS.CODIGO_PROVEEDOR,
+					R_DATOS.NOMBRE_PROVEEDOR,
+					R_DATOS.TOTAL_1,
+					R_DATOS.TOTAL_2
+				);
+			END LOOP;
+		END IF;
+	ELSIF V_AGRUPADOR = 6 THEN
+		IF V_AGRUPAR_MENOR_A > 0 THEN
+			FOR R_DATOS IN C_CLIENTE_AGRUPADOR(V_ANIO, V_EMPRESA, V_MES_INICIO, V_MES_FIN, V_ID_PLANTILLA, V_ID_PADRE, V_AGRUPAR_MENOR_A)
+			LOOP
+				V_T_DETALLE_NOTAS.EXTEND;
+				V_T_DETALLE_NOTAS(V_T_DETALLE_NOTAS.LAST) := CON_OBJECT_DETALLE_NOTAS
+				(
+					R_DATOS.NUMERO_CLIENTE,
+					R_DATOS.NOMBRE_CLIENTE,
+					R_DATOS.TOTAL_1,
+					R_DATOS.TOTAL_2
+				);
+			END LOOP;
+		ELSE
+			FOR R_DATOS IN C_CLIENTE_SIN_AGRUPADOR(V_ANIO, V_EMPRESA, V_MES_INICIO, V_MES_FIN, V_ID_PLANTILLA, V_ID_PADRE)
+			LOOP
+				V_T_DETALLE_NOTAS.EXTEND;
+				V_T_DETALLE_NOTAS(V_T_DETALLE_NOTAS.LAST) := CON_OBJECT_DETALLE_NOTAS
+				(
+					R_DATOS.NUMERO_CLIENTE,
+					R_DATOS.NOMBRE_CLIENTE,
+					R_DATOS.TOTAL_1,
+					R_DATOS.TOTAL_2
+				);
+			END LOOP;
+		END IF;
+	ELSIF V_AGRUPADOR = 7 THEN
+		IF V_AGRUPAR_MENOR_A > 0 THEN
+			FOR R_DATOS IN C_PERSONAL_AGRUPADOR(V_ANIO, V_EMPRESA, V_MES_INICIO, V_MES_FIN, V_ID_PLANTILLA, V_ID_PADRE, V_AGRUPAR_MENOR_A)
+			LOOP
+				V_T_DETALLE_NOTAS.EXTEND;
+				V_T_DETALLE_NOTAS(V_T_DETALLE_NOTAS.LAST) := CON_OBJECT_DETALLE_NOTAS
+				(
+					R_DATOS.CODIGO_EMPLEADO,
+					R_DATOS.NOMBRE_EMPLEADO,
+					R_DATOS.TOTAL_1,
+					R_DATOS.TOTAL_2
+				);
+			END LOOP;
+		ELSE
+			FOR R_DATOS IN C_PERSONAL_SIN_AGRUPADOR(V_ANIO, V_EMPRESA, V_MES_INICIO, V_MES_FIN, V_ID_PLANTILLA, V_ID_PADRE)
+			LOOP
+				V_T_DETALLE_NOTAS.EXTEND;
+				V_T_DETALLE_NOTAS(V_T_DETALLE_NOTAS.LAST) := CON_OBJECT_DETALLE_NOTAS
+				(
+					R_DATOS.CODIGO_EMPLEADO,
+					R_DATOS.NOMBRE_EMPLEADO,
+					R_DATOS.TOTAL_1,
+					R_DATOS.TOTAL_2
+				);
+			END LOOP;
+		END IF;
+	ELSIF V_AGRUPADOR = 8 THEN
+		IF V_AGRUPAR_MENOR_A > 0 THEN
+			FOR R_DATOS IN C_PROYECTO_AGRUPADOR(V_ANIO, V_EMPRESA, V_MES_INICIO, V_MES_FIN, V_AGRUPAR_MENOR_A, V_INTERCOMPANY)
+			LOOP
+				V_T_DETALLE_NOTAS.EXTEND;
+				V_T_DETALLE_NOTAS(V_T_DETALLE_NOTAS.LAST) := CON_OBJECT_DETALLE_NOTAS
+				(
+					R_DATOS.NUMERO_CUENTA,
+					R_DATOS.NOMBRE,
+					R_DATOS.TOTAL_1,
+					R_DATOS.TOTAL_2
+				);
+			END LOOP;
+		ELSE
+			FOR R_DATOS IN C_PROYECTO_SIN_AGRUPADOR(V_ANIO, V_EMPRESA, V_MES_INICIO, V_MES_FIN, V_INTERCOMPANY)
+			LOOP
+				V_T_DETALLE_NOTAS.EXTEND;
+				V_T_DETALLE_NOTAS(V_T_DETALLE_NOTAS.LAST) := CON_OBJECT_DETALLE_NOTAS
+				(
+					R_DATOS.NUMERO_CUENTA,
+					R_DATOS.NOMBRE,
+					R_DATOS.TOTAL_1,
+					R_DATOS.TOTAL_2
+				);
+			END LOOP;
+		END IF;
+	ELSIF V_AGRUPADOR = 9 THEN
+		IF V_AGRUPAR_MENOR_A > 0 THEN
+			FOR R_DATOS IN C_CONCEPTO_AGRUPADOR(V_ANIO, V_EMPRESA, V_MES_INICIO, V_MES_FIN, V_ID_PLANTILLA, V_ID_PADRE, V_AGRUPAR_MENOR_A)
+			LOOP
+				V_T_DETALLE_NOTAS.EXTEND;
+				V_T_DETALLE_NOTAS(V_T_DETALLE_NOTAS.LAST) := CON_OBJECT_DETALLE_NOTAS
+				(
+					R_DATOS.NUMERO_CUENTA,
+					R_DATOS.CONCEPTO,
+					R_DATOS.TOTAL_1,
+					R_DATOS.TOTAL_2
+				);
+			END LOOP;
+		ELSE
+			FOR R_DATOS IN C_CONCEPTO_SIN_AGRUPADOR(V_ANIO, V_EMPRESA, V_MES_INICIO, V_MES_FIN, V_ID_PLANTILLA, V_ID_PADRE)
+			LOOP
+				V_T_DETALLE_NOTAS.EXTEND;
+				V_T_DETALLE_NOTAS(V_T_DETALLE_NOTAS.LAST) := CON_OBJECT_DETALLE_NOTAS
+				(
+					R_DATOS.COD_CTA,
+					R_DATOS.CONCEPTO,
+					R_DATOS.TOTAL_1,
+					R_DATOS.TOTAL_2
+				);
+			END LOOP;
+		END IF;
+	END IF;
+	
+    RETURN V_T_DETALLE_NOTAS;
+END RETURN_DETALLE_NOTAS_FINANCIERAS_CORPORACION;

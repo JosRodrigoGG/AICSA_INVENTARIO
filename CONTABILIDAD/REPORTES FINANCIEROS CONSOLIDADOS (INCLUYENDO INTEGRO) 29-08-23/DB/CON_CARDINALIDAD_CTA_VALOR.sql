@@ -1,0 +1,39 @@
+CREATE OR REPLACE FUNCTION SAF.CON_CARDINALIDAD_CTA_VALOR
+(
+    P_COD_CTA VARCHAR2,
+    P_VERSION NUMBER,
+    P_DB_HB VARCHAR2,
+    P_VALOR NUMBER
+)
+   RETURN NUMBER
+IS
+   V_VALOR NUMBER(20,5);
+   V_TIPSALDO VARCHAR2(1);
+
+    CURSOR C_DATO IS
+        SELECT
+            TIPSALDO
+        FROM SAF.CON_CATCTAS
+        WHERE COD_CTA = P_COD_CTA
+        AND VERSION = P_VERSION;
+BEGIN
+    OPEN C_DATO;
+        FETCH C_DATO INTO V_TIPSALDO;
+    CLOSE C_DATO;
+
+    IF V_TIPSALDO = 'D' THEN
+        IF P_DB_HB = 'D' THEN
+            V_VALOR := NVL(P_VALOR, 0);
+        ELSE
+            V_VALOR := NVL(P_VALOR, 0) * -1;
+        END IF;
+    ELSE
+        IF P_DB_HB = 'D' THEN
+            V_VALOR := NVL(P_VALOR, 0) * -1;
+        ELSE
+            V_VALOR := NVL(P_VALOR, 0);
+        END IF;
+    END IF;
+
+    RETURN V_VALOR;
+END;
