@@ -1,0 +1,127 @@
+CREATE OR REPLACE PROCEDURE SAF.PR_INSERTA_TRANSACCIONES_FINANCIERAS
+(
+    P_SEMANA	      PRS_DEFINICION_SEMANAS.ID_SEMANA%TYPE,
+    P_ID_FLUJO        FLUJO_EFECTIVO_PROCESO.ID%TYPE,
+    P_EMPRESA         GRAL_EMPRESAS.CODIGO_EMPRESA%TYPE
+) IS
+    CURSOR C_SEMANA IS
+        SELECT 
+            NO,
+            INICIO_SEMANA, 
+            FIN_SEMANA
+        FROM SAF.PRS_DEFINICION_SEMANAS  
+        WHERE ID_SEMANA = P_SEMANA;
+    
+    CURSOR C_PROCESAR IS
+        SELECT
+            ID,
+            CODIGO_EMPRESA,
+            CODIGO_MONEDA,
+            MONTO_LOCAL,
+            MONTO_ORIGEN,
+            ES_PRESTAMO,
+            OBSERVACIONES
+        FROM SAF.FLUJO_EFECTIVO_FDU_TRANSACCIONES_FINANCIERAS
+        WHERE ID_FLUJO = P_ID_FLUJO
+        AND CODIGO_EMPRESA IN
+        (
+            SELECT 
+                CODIGO_EMPRESA 
+            FROM SAF.FLUJO_EMPRESAS_CONSOLIDADORAS
+            WHERE CODIGO_EMPRESA_CONSOLIDADORA  = NVL(P_EMPRESA, CODIGO_EMPRESA_CONSOLIDADORA)
+        )
+        AND APLICA_PAGO = 'S';
+    
+    L_PRESUPUESTO	PRS_PRESUPUESTO.CODIGO%TYPE:=NULL;
+    L_USUARIO		GRAL_USUARIOS.CODIGO_USUARIO%TYPE := PCK_GRAL.FNC_TRAE_NO_USUARIO(NVL(V('APP_USER'),USER));
+    L_SEMANA		PRS_DEFINICION_SEMANAS.NO%TYPE:=NULL;
+    L_INICIO_SEMANA PRS_DEFINICION_SEMANAS.INICIO_SEMANA%TYPE:=NULL;
+    L_FIN_SEMANA	PRS_DEFINICION_SEMANAS.FIN_SEMANA%TYPE:=NULL;
+BEGIN
+    OPEN C_SEMANA;
+	    FETCH C_SEMANA INTO L_SEMANA, L_INICIO_SEMANA, L_FIN_SEMANA;
+	CLOSE C_SEMANA;
+
+    FOR R_PROCESAR IN C_PROCESAR
+    LOOP
+        L_PRESUPUESTO := 'PRS'|| PRS_CODIGO.nextval;
+
+        INSERT INTO SAF.PRS_PRESUPUESTO
+        (
+            CODIGO, 
+            ID_CUENTA_FC, 
+            BANDERA_EDICION, 
+            ESTADO_FINANZAS,
+            ESTADO_PRESUPUESTADO,
+            DESCRIPCION, 
+            CODIGO_PROVEEDOR, 
+            FECHA_INICIAL, 
+            FECHA_FINAL, 
+            IMPORTE, 
+            MOSTRAR, 
+            MONEDA, 
+            IMPORTE_ORIGINAL, 
+            IMPORTE_REAL, 
+            CODIGO_EMPRESA, 
+            NO_SEMANA, 
+            ID_SEMANA, 
+            CODIGO_MODULO
+        )
+        VALUES
+        (
+            L_PRESUPUESTO,
+            NULL,
+            'Y',
+            'Y',
+            'APROBADO',
+            (
+                CASE WHEN R_PROCESAR.ES_PRESTAMO = 'S' THEN
+                    'Prestamo: '
+                ELSE
+                    'Inversión: '
+                END
+            ) || R_PROCESAR.OBSERVACIONES,
+            NULL,
+            L_INICIO_SEMANA,
+            L_FIN_SEMANA,
+            R_PROCESAR.MONTO_ORIGEN,
+            1,
+            R_PROCESAR.CODIGO_MONEDA,
+            R_PROCESAR.MONTO_ORIGEN,
+            R_PROCESAR.MONTO_LOCAL,
+            R_PROCESAR.CODIGO_EMPRESA,
+            L_SEMANA,
+            P_SEMANA,
+            NULL
+        );
+
+        UPDATE SAF.FLUJO_EFECTIVO_FDU_TRANSACCIONES_FINANCIERAS SET
+            CODIGO_PRESUPUESTO = L_PRESUPUESTO
+        WHERE ID = R_PROCESAR.ID;
+
+        UPDATE SAF.FDU_TRANSACCIONES_FINANCIERAS SET
+            ESTADO = 'ACEPTADO'
+        WHERE ID = R_PROCESAR.ID;
+
+        INSERT INTO SAF.FDU_TRANSACCIONES_FINANCIERAS_ESTADOS_LOG
+        (
+            ID_FDU_TRANSACCIONES_FINANCIERAS,
+            ESTADO,
+            OBSERVACION,
+            USUARIO_ACEPTACION,
+            FECHA_ACEPTACION
+        )
+        VALUES
+        (
+            R_PROCESAR.ID,
+            'ACEPTADO',
+            'FLUJO CONCLUIDO',
+            NVL(V('APP_USER'), USER),
+            SYSDATE
+        );
+
+        IF R_PROCESAR.ES_PRESTAMO = 'S' THEN
+            SAF.PR_FDU_GENERAR_CALCULO_PAGOS(R_PROCESAR.ID);
+        END IF;
+    END LOOP;
+END;
