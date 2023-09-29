@@ -28,7 +28,7 @@ prompt APPLICATION 130 - Generación Contraseñas
 -- Application Export:
 --   Application:     130
 --   Name:            Generación Contraseñas
---   Date and Time:   15:04 Wednesday September 27, 2023
+--   Date and Time:   10:36 Thursday September 28, 2023
 --   Exported By:     RODRIGO.GARCIA@AICSACORP.COM
 --   Flashback:       0
 --   Export Type:     Page Export
@@ -62,7 +62,7 @@ wwv_flow_imp_page.create_page(
 ,p_protection_level=>'C'
 ,p_page_component_map=>'21'
 ,p_last_updated_by=>'RODRIGO.GARCIA@AICSACORP.COM'
-,p_last_upd_yyyymmddhh24miss=>'20230926170624'
+,p_last_upd_yyyymmddhh24miss=>'20230928101053'
 );
 wwv_flow_imp_page.create_page_plug(
  p_id=>wwv_flow_imp.id(703806988643369576)
@@ -967,8 +967,8 @@ unistr('        ''Inversi\00F3n/Prestamos'' DESCRIPCION,'),
 '                2,',
 '                TASA_CAMBIO,',
 '                NULL',
-'            ), 0)) MONTOUSD,',
-'        SUM(NVL(MONTO_LOCAL, 0)) MONTOQTZ,',
+'            ), 0)) * -1 MONTOUSD,',
+'        SUM(NVL(MONTO_LOCAL, 0)) * -1 MONTOQTZ,',
 '        NVL(SAF.FNC_GET_FLUJO_EMPRESA_CONSOLIDADORA(CODIGO_EMPRESA), CODIGO_EMPRESA) EMPRESA_CONSOLIDADORA,',
 '        CODIGO_EMPRESA',
 '    FROM SAF.FLUJO_EFECTIVO_FDU_TRANSACCIONES_FINANCIERAS',
