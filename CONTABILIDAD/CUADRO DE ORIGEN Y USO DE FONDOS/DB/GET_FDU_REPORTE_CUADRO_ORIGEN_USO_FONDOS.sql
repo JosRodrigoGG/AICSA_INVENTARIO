@@ -28,35 +28,126 @@ RETURN FDU_T_CUADRO_ORIGEN_USO_FONDO AS
         FROM SAF.PLANTILLA_ASIGNACION_NOTAS A
         WHERE A.TIPO_REPORTE = 7;
 
-    CURSOR C_INGRESOS(V_MONEDA NUMBER, V_MES_FIN NUMBER, V_ANIO NUMBER, V_EMPRESAS VARCHAR2) IS
-        SELECT 
-            A.CODIGO_EMPRESA,
-            B.NUMERO_CUENTA,
-            SUM(SAF.APX_FNC_CONVERSION_MONEDAS
-            (
-                NVL(C.VALOR_ORIGEN, 0),
-                NVL(C.CODIGO_MONEDA, 1),
-                V_MONEDA,
-                NULL,
-                NULL
-            )) VALOR
-        FROM CXP_TRANSACCIONES A, EST_PROYECTOS B, CXP_RELACION_DOCUMENTOS C
-        WHERE A.TIPO_TRANSACCION = 34
-        AND A.CODIGO_CC = B.CODIGO_CC(+)
-        AND A.TIPO_TRANSACCION = C.TIPO_TRANSACCION_CARGO(+)
-        AND A.CODIGO_PROVEEDOR = C.CODIGO_PROVEEDOR(+)
-        AND A.SERIE_DOCUMENTO  = C.SERIE_DOCUMENTO_CARGO(+)
-        AND A.NUMERO_DOCUMENTO = C.NUMERO_DOCUMENTO_CARGO(+)
-        AND EXTRACT(MONTH FROM A.FECHA_TRANSACCION) >= V_MES_FIN
-        AND EXTRACT(YEAR FROM A.FECHA_TRANSACCION) >= V_ANIO
-        AND A.CODIGO_EMPRESA IN
+    CURSOR C_INGRESOS_EGRESOS(V_MONEDA NUMBER, V_MES_FIN NUMBER, V_ANIO NUMBER, V_EMPRESAS VARCHAR2) IS
+        WITH VALORES AS
         (
             SELECT 
-                REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) AS CODIGO_EMPRESA
-            FROM 
-                dual CONNECT BY REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) IS NOT NULL
+                A.CODIGO_EMPRESA,
+                B.NUMERO_CUENTA,
+                SUM(SAF.APX_FNC_CONVERSION_MONEDAS
+                (
+                    NVL(C.VALOR_ORIGEN, 0),
+                    NVL(C.CODIGO_MONEDA, 1),
+                    V_MONEDA,
+                    NULL,
+                    NULL
+                )) VALOR_EGRESO,
+                0 VALOR_INGRESO
+            FROM CXP_TRANSACCIONES A, EST_PROYECTOS B, CXP_RELACION_DOCUMENTOS C
+            WHERE A.TIPO_TRANSACCION = 34
+            AND A.CODIGO_CC = B.CODIGO_CC(+)
+            AND A.TIPO_TRANSACCION = C.TIPO_TRANSACCION_CARGO(+)
+            AND A.CODIGO_PROVEEDOR = C.CODIGO_PROVEEDOR(+)
+            AND A.SERIE_DOCUMENTO  = C.SERIE_DOCUMENTO_CARGO(+)
+            AND A.NUMERO_DOCUMENTO = C.NUMERO_DOCUMENTO_CARGO(+)
+            AND EXTRACT(MONTH FROM A.FECHA_TRANSACCION) >= V_MES_FIN
+            AND EXTRACT(YEAR FROM A.FECHA_TRANSACCION) >= V_ANIO
+            AND A.CODIGO_EMPRESA IN
+            (
+                SELECT 
+                    REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                FROM 
+                    dual CONNECT BY REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) IS NOT NULL
+            )
+            GROUP BY A.CODIGO_EMPRESA, B.NUMERO_CUENTA
+            UNION ALL
+            SELECT 
+                E.CODIGO_EMPRESA, 
+                G.NUMERO_CUENTA,
+                0 VALOR_EGRESO,
+                SUM(SAF.APX_FNC_CONVERSION_MONEDAS
+                (
+                    NVL(E.VALOR, 0),
+                    1,
+                    1,
+                    NULL,
+                    NULL
+                )) VALOR_INGRESO
+            FROM BCOMOVIG E, BCOMOVID F, EST_PROYECTOS G
+            WHERE E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
+            AND E.CODMAE = F.CODMAE
+            AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
+            AND E.SERIE = F.SERIE
+            AND E.NUMDOC = F.NUMDOC
+            AND F.CODIGO_CC = G.CODIGO_CC
+            AND E.CODIGO_EMPRESA IN
+            (
+                SELECT 
+                    REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                FROM 
+                    dual CONNECT BY REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) IS NOT NULL
+            )
+            AND EXTRACT(MONTH FROM E.FEDOC) <= V_MES_FIN
+            AND EXTRACT(YEAR FROM E.FEDOC) <= V_ANIO
+            AND E.TIPO_TRANSACCION IN 
+            (
+                SELECT 
+                    TIPO_TRANSACCION
+                FROM GRAL_TIPOS_TRANSAC_MODULOS GTTM
+                WHERE CODIGO_MODULO = 8
+                AND CARGO_ABONO   = 'C'
+                AND TIPO_TRANSACCION NOT IN (14)
+            )
+            GROUP BY E.CODIGO_EMPRESA, G.NUMERO_CUENTA
         )
-        GROUP BY A.CODIGO_EMPRESA, B.NUMERO_CUENTA;
+        SELECT
+            NVL(SAF.FNC_GET_NOMBRE_CLIENTE(CODIGO_EMPRESA, NUMERO_CUENTA), 'Otros Registros') DESCRIPCION,
+            NUMERO_CUENTA,
+            NVL(SUM(VALOR_INGRESO), 0) VALOR_INGRESO,
+            NVL(SUM(VALOR_EGRESO), 0) VALOR_EGRESO
+        FROM VALORES
+        GROUP BY NUMERO_CUENTA, NVL(SAF.FNC_GET_NOMBRE_CLIENTE(CODIGO_EMPRESA, NUMERO_CUENTA), 'Otros Registros');
+   
+	CURSOR C_SUMA_SUB_TOTAL(P_FDU_T_CUADRO_ORIGEN_USO_FONDO FDU_T_CUADRO_ORIGEN_USO_FONDO) IS
+		SELECT
+			ID_PADRE,
+            SUM(INGRESOS) INGRESOS,
+            SUM(EGRESOS) EGRESOS,
+            SUM(VARIACION) VARIACION
+		FROM TABLE
+		(
+			P_FDU_T_CUADRO_ORIGEN_USO_FONDO
+		)
+		WHERE TIPO_RENGLON = 'DETALLE'
+        AND ID_PADRE IN
+        (
+            SELECT
+                A.ID
+            FROM SAF.PLANTILLA_ASIGNACION_NOTAS A
+            WHERE TIPO_REPORTE = 7
+        )
+        GROUP BY ID_PADRE;
+    
+    CURSOR C_SUMA_TOTAL(P_FDU_T_CUADRO_ORIGEN_USO_FONDO FDU_T_CUADRO_ORIGEN_USO_FONDO) IS
+		SELECT
+            SUM(INGRESOS) INGRESOS,
+            SUM(EGRESOS) EGRESOS,
+            SUM(VARIACION) VARIACION
+		FROM TABLE
+		(
+			P_FDU_T_CUADRO_ORIGEN_USO_FONDO
+		)
+		WHERE TIPO_RENGLON = 'SUB_TOTAL_RENGLON'
+        AND ID_PADRE IN
+        (
+            SELECT
+                A.ID
+            FROM SAF.PLANTILLA_ASIGNACION_NOTAS A
+            WHERE TIPO_REPORTE = 7
+        );
+    
+    CURSOR C_
+   
 BEGIN
     FOR R_TEMP IN C_ESTRUCTURA_TITULO
     LOOP
@@ -85,9 +176,9 @@ BEGIN
             NULL,
             NULL,
             '&emsp;&emsp;' || R_TEMP.NOMBRE,
-            NULL,
-            NULL,
-            NULL,
+            0,
+            0,
+            0,
             R_TEMP.TIPO,
             'font-weight: bold;',
             3,
@@ -96,22 +187,56 @@ BEGIN
         );
     END LOOP;
 
-    FOR R_TEMP IN C_INGRESOS(P_MONEDA, P_MES_FIN, P_ANIO, P_EMPRESAS)
+    FOR R_TEMP IN C_INGRESOS_EGRESOS(P_MONEDA, P_MES_FIN, P_ANIO, P_EMPRESAS)
     LOOP
         V_FDU_T_CUADRO_ORIGEN_USO_FONDO.EXTEND;
         V_FDU_T_CUADRO_ORIGEN_USO_FONDO(V_FDU_T_CUADRO_ORIGEN_USO_FONDO.LAST) := FDU_OBJECT_CUADRO_ORIGEN_USO_FONDO
         (
-            R_TEMP.CODIGO_EMPRESA,
+            NULL,
             R_TEMP.NUMERO_CUENTA,
-            NVL(SAF.FNC_GET_NOMBRE_CLIENTE(R_TEMP.CODIGO_EMPRESA, R_TEMP.NUMERO_CUENTA), R_TEMP.CODIGO_EMPRESA || ' - Otros Registros'),
-            0,
-            R_TEMP.VALOR,
-            0,
+            R_TEMP.DESCRIPCION,
+            R_TEMP.VALOR_INGRESO,
+            R_TEMP.VALOR_EGRESO,
+            R_TEMP.VALOR_INGRESO - R_TEMP.VALOR_EGRESO,
             'DETALLE',
             NULL,
             2,
             NULL,
             327
+        );
+    END LOOP;
+
+    FOR R_TEMP IN C_SUMA_SUB_TOTAL(V_FDU_T_CUADRO_ORIGEN_USO_FONDO)
+    LOOP
+        FOR i IN 1..V_FDU_T_CUADRO_ORIGEN_USO_FONDO.COUNT
+        LOOP
+            IF V_FDU_T_CUADRO_ORIGEN_USO_FONDO(i).TIPO_RENGLON = 'SUB_TOTAL_RENGLON'
+                AND V_FDU_T_CUADRO_ORIGEN_USO_FONDO(i).ID_PADRE = R_TEMP.ID_PADRE THEN
+                V_FDU_T_CUADRO_ORIGEN_USO_FONDO(i).INGRESOS := R_TEMP.INGRESOS;
+                V_FDU_T_CUADRO_ORIGEN_USO_FONDO(i).EGRESOS := R_TEMP.EGRESOS;
+                V_FDU_T_CUADRO_ORIGEN_USO_FONDO(i).VARIACION := R_TEMP.VARIACION;
+
+                EXIT;
+            END IF;
+        END LOOP;
+    END LOOP;
+
+    FOR R_TEMP IN C_SUMA_TOTAL(V_FDU_T_CUADRO_ORIGEN_USO_FONDO)
+    LOOP
+        V_FDU_T_CUADRO_ORIGEN_USO_FONDO.EXTEND;
+        V_FDU_T_CUADRO_ORIGEN_USO_FONDO(V_FDU_T_CUADRO_ORIGEN_USO_FONDO.LAST) := FDU_OBJECT_CUADRO_ORIGEN_USO_FONDO
+        (
+            NULL,
+            NULL,
+            '&emsp;&emsp;&emsp; Total',
+            R_TEMP.INGRESOS,
+            R_TEMP.EGRESOS,
+            R_TEMP.VARIACION,
+            'TOTAL_RENGLON',
+            NULL,
+            4,
+            NULL,
+            NULL
         );
     END LOOP;
 
