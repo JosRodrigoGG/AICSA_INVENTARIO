@@ -1,0 +1,42 @@
+CREATE OR REPLACE FUNCTION SAF.GET_CARDINALIDAD_CUENTA_CONTABLE
+(
+	V_CUENTA VARCHAR2,
+    V_VALOR NUMBER,
+    V_DB_HB VARCHAR2,
+    V_VERSION NUMBER
+) 
+RETURN NUMBER AS
+    CURSOR C_TIPO_SALDO IS
+        SELECT
+            TIPSALDO
+        FROM SAF.CON_CATCTAS
+        WHERE COD_CTA = V_CUENTA
+        AND VERSION = V_VERSION;
+
+    V_TIPO_SALDO VARCHAR2(5);
+    P_VALOR NUMBER;
+BEGIN
+    OPEN C_TIPO_SALDO;
+        FETCH C_TIPO_SALDO INTO V_TIPO_SALDO;
+    CLOSE C_TIPO_SALDO;
+
+    IF V_TIPO_SALDO IS NOT NULL THEN
+        IF V_TIPO_SALDO = 'D' THEN
+            IF V_DB_HB = 'D' THEN
+                P_VALOR := V_VALOR;
+            ELSE
+                P_VALOR := V_VALOR * -1;
+            END IF;
+        ELSE
+            IF V_DB_HB = 'D' THEN
+                P_VALOR := V_VALOR * -1;
+            ELSE
+                P_VALOR := V_VALOR;
+            END IF;
+        END IF;
+    ELSE
+        P_VALOR := V_VALOR;
+    END IF;
+
+    RETURN P_VALOR;
+END GET_CARDINALIDAD_CUENTA_CONTABLE;

@@ -15,7 +15,7 @@ RETURN NUMBER AS
                 A.NOMBRE_GASTO AS NOMBRE_GASTO,
                 (
                     CASE
-                        WHEN :P124_TIPO_INDICADOR = 8 THEN
+                        WHEN V_INDICADOR = 8 THEN
                             A.SALDO
                         ELSE
                             A.SALDO * -1
@@ -41,6 +41,7 @@ RETURN NUMBER AS
             )
             AND TRUNC(A.FECHA_POLIZA) BETWEEN TRUNC(V_FECHA_INICIO) AND TRUNC(V_FECHA_FIN)
             AND B.FUNCION = '+'
+            AND A.USUARIO_GRABACION = 1
         ), DATOS_EGRESO AS (
             SELECT 
                 DISTINCT A.ID,
@@ -67,6 +68,7 @@ RETURN NUMBER AS
             )
             AND TRUNC(A.FECHA_POLIZA) BETWEEN TRUNC(V_FECHA_INICIO) AND TRUNC(V_FECHA_FIN)
             AND B.FUNCION = '-'
+            AND A.USUARIO_GRABACION = 1
         )
         SELECT
             (
