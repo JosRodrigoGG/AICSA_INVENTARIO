@@ -69,7 +69,7 @@ RETURN FDU_T_CUADRO_ORIGEN_USO_FONDO AS
                 (
                     NVL(E.VALOR, 0),
                     1,
-                    1,
+                    V_MONEDA,
                     NULL,
                     NULL
                 )) VALOR_INGRESO
@@ -101,12 +101,56 @@ RETURN FDU_T_CUADRO_ORIGEN_USO_FONDO AS
             GROUP BY E.CODIGO_EMPRESA, G.NUMERO_CUENTA
         )
         SELECT
-            NVL(SAF.FNC_GET_NOMBRE_CLIENTE(CODIGO_EMPRESA, NUMERO_CUENTA), 'Otros Registros') DESCRIPCION,
+            NVL(SAF.FNC_GET_NOMBRE_CLIENTE(CODIGO_EMPRESA, NUMERO_CUENTA), CODIGO_EMPRESA || ' - Otros Registros') DESCRIPCION,
             NUMERO_CUENTA,
             NVL(SUM(VALOR_INGRESO), 0) VALOR_INGRESO,
             NVL(SUM(VALOR_EGRESO), 0) VALOR_EGRESO
         FROM VALORES
-        GROUP BY NUMERO_CUENTA, NVL(SAF.FNC_GET_NOMBRE_CLIENTE(CODIGO_EMPRESA, NUMERO_CUENTA), 'Otros Registros');
+        GROUP BY NUMERO_CUENTA, NVL(SAF.FNC_GET_NOMBRE_CLIENTE(CODIGO_EMPRESA, NUMERO_CUENTA), CODIGO_EMPRESA || ' - Otros Registros');
+    
+    CURSOR C_PRESTAMOS_INVERSIONES(V_MONEDA NUMBER, V_MES_FIN NUMBER, V_ANIO NUMBER, V_EMPRESAS VARCHAR2) IS
+        SELECT 
+            A.TIPO_DESTINATARIO,
+            SUM(
+                SAF.APX_FNC_CONVERSION_MONEDAS
+                (
+                    NVL(A.MONTO_ORIGEN, 0),
+                    A.CODIGO_MONEDA,
+                    V_MONEDA,
+                    A.TASA_CAMBIO,
+                    NULL
+                )
+            ) EGRESO,
+            SUM(
+                SAF.APX_FNC_CONVERSION_MONEDAS
+                (
+                    NVL(A.MONTO_RECUPERADO_ORIGEN, 0),
+                    A.CODIGO_MONEDA,
+                    V_MONEDA,
+                    A.TASA_CAMBIO,
+                    NULL
+                )
+            ) INGRESO,
+            (
+                CASE 
+                    WHEN A.ES_PRESTAMO = 'S' THEN 325
+                    ELSE 324
+                END
+            ) TIPO_RENGLON
+        FROM SAF.FDU_TRANSACCIONES_FINANCIERAS A
+        INNER JOIN SAF.FDU_TRANSACCIONES_FINANCIERAS_ESTADOS_LOG B
+            ON B.ID_FDU_TRANSACCIONES_FINANCIERAS = A.ID
+            AND (B.ESTADO = 'ACEPTADO' OR B.ESTADO = 'CANCELADO')
+        WHERE A.CODIGO_EMPRESA IN
+        (
+            SELECT 
+                    REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                FROM 
+                    dual CONNECT BY REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) IS NOT NULL
+        )
+        AND EXTRACT(MONTH FROM B.FECHA_ACEPTACION) <= V_MES_FIN
+        AND EXTRACT(YEAR FROM B.FECHA_ACEPTACION) <= V_ANIO
+        GROUP BY A.TIPO_DESTINATARIO, A.ES_PRESTAMO;
    
 	CURSOR C_SUMA_SUB_TOTAL(P_FDU_T_CUADRO_ORIGEN_USO_FONDO FDU_T_CUADRO_ORIGEN_USO_FONDO) IS
 		SELECT
@@ -145,8 +189,6 @@ RETURN FDU_T_CUADRO_ORIGEN_USO_FONDO AS
             FROM SAF.PLANTILLA_ASIGNACION_NOTAS A
             WHERE TIPO_REPORTE = 7
         );
-    
-    CURSOR C_
    
 BEGIN
     FOR R_TEMP IN C_ESTRUCTURA_TITULO
@@ -206,6 +248,25 @@ BEGIN
         );
     END LOOP;
 
+    FOR R_TEMP IN C_PRESTAMOS_INVERSIONES(P_MONEDA, P_MES_FIN, P_ANIO, P_EMPRESAS)
+    LOOP
+        V_FDU_T_CUADRO_ORIGEN_USO_FONDO.EXTEND;
+        V_FDU_T_CUADRO_ORIGEN_USO_FONDO(V_FDU_T_CUADRO_ORIGEN_USO_FONDO.LAST) := FDU_OBJECT_CUADRO_ORIGEN_USO_FONDO
+        (
+            NULL,
+            NULL,
+            R_TEMP.TIPO_DESTINATARIO,
+            R_TEMP.INGRESO,
+            R_TEMP.EGRESO,
+            R_TEMP.INGRESO - R_TEMP.EGRESO,
+            'DETALLE',
+            NULL,
+            2,
+            NULL,
+            R_TEMP.TIPO_RENGLON
+        );
+    END LOOP;
+
     FOR R_TEMP IN C_SUMA_SUB_TOTAL(V_FDU_T_CUADRO_ORIGEN_USO_FONDO)
     LOOP
         FOR i IN 1..V_FDU_T_CUADRO_ORIGEN_USO_FONDO.COUNT
@@ -228,12 +289,12 @@ BEGIN
         (
             NULL,
             NULL,
-            '&emsp;&emsp;&emsp; Total',
+            '&emsp;&emsp;&emsp; TOTAL',
             R_TEMP.INGRESOS,
             R_TEMP.EGRESOS,
             R_TEMP.VARIACION,
             'TOTAL_RENGLON',
-            NULL,
+            'font-weight: bold;',
             4,
             NULL,
             NULL
