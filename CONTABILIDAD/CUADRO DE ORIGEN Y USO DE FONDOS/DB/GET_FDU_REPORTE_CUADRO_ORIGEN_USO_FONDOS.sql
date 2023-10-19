@@ -244,7 +244,12 @@ BEGIN
             NULL,
             2,
             NULL,
-            327
+            (
+                CASE
+                    WHEN SAF.FNC_GET_ES_EMPRESA_INTERCOMPANY(R_TEMP.NUMERO_CUENTA) = 'S' THEN 326
+                    ELSE 327
+                END
+            )
         );
     END LOOP;
 
