@@ -70,7 +70,7 @@ BEGIN
             )
         );
 
-        V_ID := NULL;
+        /*V_ID := NULL;
         
         OPEN C_ESTADOS_LOG_ID(R_DATOS.ID);
             FETCH C_ESTADOS_LOG_ID INTO V_ID;
@@ -400,6 +400,6 @@ BEGIN
                     END IF;
                 END;
             END IF;
-        END IF;
+        END IF;*/
     END LOOP;
 END;
