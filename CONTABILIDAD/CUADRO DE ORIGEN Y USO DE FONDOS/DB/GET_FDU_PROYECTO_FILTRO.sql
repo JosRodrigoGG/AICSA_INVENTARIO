@@ -1,0 +1,100 @@
+CREATE OR REPLACE FUNCTION SAF.GET_FDU_PROYECTO_FILTRO
+(
+	V_VECTOR_EMPRESA VARCHAR2,
+    V_VECTOR_CLIENTE VARCHAR2,
+    V_FECHA_INICIO VARCHAR2,
+    V_FECHA_FIN VARCHAR2
+)
+RETURN FDU_T_CUADRO_ORIGEN_USO_FONDO AS
+    V_FDU_T_CUADRO_ORIGEN_USO_FONDO FDU_T_CUADRO_ORIGEN_USO_FONDO := FDU_T_CUADRO_ORIGEN_USO_FONDO(); 
+
+    CURSOR C_PROYECTOS_F(P_VECTOR_EMPRESA VARCHAR2, P_FECHA_INICIO VARCHAR2, P_FECHA_FIN VARCHAR2, P_VECTOR_CLIENTE VARCHAR2) IS
+            SELECT 
+                DISTINCT
+                (A.CODIGO_PROYECTO  || ' - ' || A.DESCRIPCION) DESCRIPCION,
+                A.CODIGO_PROYECTO CODIGO_PROYECTO
+            FROM BCOMOVIG E
+            LEFT JOIN BCOMOVID F
+                ON E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
+                AND E.CODMAE = F.CODMAE
+                AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
+                AND E.SERIE = F.SERIE
+                AND E.NUMDOC = F.NUMDOC
+            INNER JOIN SAF.EST_PROYECTOS A
+                ON A.CODIGO_PROYECTO = NVL(F.CODIGO_CC, E.CODIGO_CC)
+                AND A.NUMERO_CUENTA IS NOT NULL
+            WHERE E.CODIGO_EMPRESA > 99
+            AND E.CODIGO_EMPRESA IN
+            (
+                SELECT 
+                    REGEXP_SUBSTR(P_VECTOR_EMPRESA, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                FROM 
+                    dual CONNECT BY REGEXP_SUBSTR(P_VECTOR_EMPRESA, '[^\:]+', 1, level) IS NOT NULL
+            )
+            AND TRUNC(E.FEDOC) BETWEEN TRUNC(TO_DATE(P_FECHA_INICIO, 'DD/MM/YYYY')) AND TRUNC(TO_DATE(P_FECHA_FIN, 'DD/MM/YYYY'))
+            AND E.TIPO_TRANSACCION IN 
+            (
+                SELECT 
+                    TIPO_TRANSACCION
+                FROM GRAL_TIPOS_TRANSAC_MODULOS GTTM
+                WHERE CODIGO_MODULO = 8
+                AND CARGO_ABONO IN ('C', 'A')
+            )
+            AND E.TIPO_TRANSACCION NOT IN (14, 15)
+            AND E.FANULA IS NULL
+            AND NVL(F.CODIGO_CC, E.CODIGO_CC) LIKE '2%'
+            AND A.NUMERO_CUENTA IN 
+            (
+                SELECT 
+                    REGEXP_SUBSTR(P_VECTOR_CLIENTE, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                FROM 
+                    dual CONNECT BY REGEXP_SUBSTR(P_VECTOR_CLIENTE, '[^\:]+', 1, level) IS NOT NULL
+            )
+            ORDER BY A.CODIGO_PROYECTO;
+
+    CURSOR C_TODOS_PROYECTOS IS
+        SELECT
+            '0 - Todos los Proyectos' AS DESCRIPCION,
+	        0 AS CODIGO_PROYECTO
+        FROM DUAL;
+BEGIN
+    FOR R_DATOS IN C_TODOS_PROYECTOS
+    LOOP
+        V_FDU_T_CUADRO_ORIGEN_USO_FONDO.EXTEND;
+        V_FDU_T_CUADRO_ORIGEN_USO_FONDO(V_FDU_T_CUADRO_ORIGEN_USO_FONDO.LAST) := FDU_OBJECT_CUADRO_ORIGEN_USO_FONDO
+        (
+            NULL,
+            NULL,
+            R_DATOS.DESCRIPCION,
+            NULL,
+            NULL,
+            NULL,
+            R_DATOS.CODIGO_PROYECTO,
+            NULL,
+            NULL,
+            NULL,
+            NULL
+        );
+    END LOOP;
+    
+	FOR R_DATOS IN C_PROYECTOS_F(V_VECTOR_EMPRESA, V_FECHA_INICIO, V_FECHA_FIN, V_VECTOR_CLIENTE)
+    LOOP
+        V_FDU_T_CUADRO_ORIGEN_USO_FONDO.EXTEND;
+        V_FDU_T_CUADRO_ORIGEN_USO_FONDO(V_FDU_T_CUADRO_ORIGEN_USO_FONDO.LAST) := FDU_OBJECT_CUADRO_ORIGEN_USO_FONDO
+        (
+            NULL,
+            NULL,
+            R_DATOS.DESCRIPCION,
+            NULL,
+            NULL,
+            NULL,
+            R_DATOS.CODIGO_PROYECTO,
+            NULL,
+            NULL,
+            NULL,
+            NULL
+        );
+    END LOOP;
+
+    RETURN V_FDU_T_CUADRO_ORIGEN_USO_FONDO;
+END GET_FDU_PROYECTO_FILTRO;

@@ -3,10 +3,15 @@ CREATE OR REPLACE FUNCTION SAF.GET_FDU_REPORTE_CUADRO_ORIGEN_USO_FONDOS
 	P_EMPRESAS VARCHAR2,
     P_FECHA_INICIO DATE,
     P_FECHA_FIN DATE,
-    P_MONEDA NUMBER DEFAULT 1
+    P_MONEDA NUMBER DEFAULT 1,
+    P_FILTRO VARCHAR2 DEFAULT 'N',
+    P_NUMERO_CUENTA VARCHAR2 DEFAULT NULL,
+    P_CODIGO_PROYECTO VARCHAR2 DEFAULT NULL
 )
 RETURN FDU_T_CUADRO_ORIGEN_USO_FONDO AS
 	V_FDU_T_CUADRO_ORIGEN_USO_FONDO FDU_T_CUADRO_ORIGEN_USO_FONDO := FDU_T_CUADRO_ORIGEN_USO_FONDO();
+	V_NOMBRE VARCHAR2(200);
+    V_CONTADOR NUMBER;
 
     CURSOR C_ESTRUCTURA_TITULO IS
         SELECT
@@ -27,134 +32,30 @@ RETURN FDU_T_CUADRO_ORIGEN_USO_FONDO AS
             'SUB_TOTAL_RENGLON' AS TIPO
         FROM SAF.PLANTILLA_ASIGNACION_NOTAS A
         WHERE A.TIPO_REPORTE = 7;
-
-    CURSOR C_INGRESOS_EGRESOS(V_MONEDA NUMBER, V_FECHA_INICIO DATE, V_FECHA_FIN DATE, V_EMPRESAS VARCHAR2) IS
-        WITH VALORES AS
-        (
-            SELECT 
-                E.CODIGO_EMPRESA,
-                G.NUMERO_CUENTA,
-                F.CODIGO_CC,
-                0 VALOR_EGRESO,
-                SUM(SAF.APX_FNC_CONVERSION_MONEDAS
-                (
-                    NVL(F.VALOR, 0),
-                    1,
-                    V_MONEDA,
-                    NULL,
-                    NULL
-                )) VALOR_INGRESO
-            FROM BCOMOVIG E, BCOMOVID F
-            LEFT JOIN SAF.EST_PROYECTOS G
-                ON G.CODIGO_PROYECTO = F.CODIGO_CC
-            WHERE E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
-            AND E.CODMAE = F.CODMAE
-            AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
-            AND E.SERIE = F.SERIE
-            AND E.NUMDOC = F.NUMDOC
-            AND E.CODIGO_EMPRESA > 99
-            AND E.CODIGO_EMPRESA IN
-            (
-                SELECT 
-                    REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) AS CODIGO_EMPRESA
-                FROM 
-                    dual CONNECT BY REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) IS NOT NULL
-            )
-            AND TRUNC(E.FEDOC) BETWEEN TRUNC(TO_DATE(V_FECHA_INICIO, 'DD/MM/YYYY')) AND TRUNC(TO_DATE(V_FECHA_FIN, 'DD/MM/YYYY'))
-            AND E.TIPO_TRANSACCION IN 
-            (
-                SELECT 
-                    TIPO_TRANSACCION
-                FROM GRAL_TIPOS_TRANSAC_MODULOS GTTM
-                WHERE CODIGO_MODULO = 8
-                AND CARGO_ABONO   = 'C'
-            )
-            AND E.SERIE != 'A'
-            GROUP BY E.CODIGO_EMPRESA, G.NUMERO_CUENTA, F.CODIGO_CC
-            UNION ALL
-            SELECT 
-                E.CODIGO_EMPRESA,
-                G.NUMERO_CUENTA,
-                F.CODIGO_CC,
-                SUM(SAF.APX_FNC_CONVERSION_MONEDAS
-                (
-                    NVL(F.VALOR, 0),
-                    1,
-                    V_MONEDA,
-                    NULL,
-                    NULL
-                )) VALOR_EGRESO,
-                0 VALOR_INGRESO
-            FROM BCOMOVIG E, BCOMOVID F
-            LEFT JOIN SAF.EST_PROYECTOS G
-                ON G.CODIGO_PROYECTO = F.CODIGO_CC
-            WHERE E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
-            AND E.CODMAE = F.CODMAE
-            AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
-            AND E.SERIE = F.SERIE
-            AND E.NUMDOC = F.NUMDOC
-            AND E.CODIGO_EMPRESA > 99
-            AND E.CODIGO_EMPRESA IN
-            (
-                SELECT 
-                    REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) AS CODIGO_EMPRESA
-                FROM 
-                    dual CONNECT BY REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) IS NOT NULL
-            )
-            AND TRUNC(E.FEDOC) BETWEEN TRUNC(TO_DATE(V_FECHA_INICIO, 'DD/MM/YYYY')) AND TRUNC(TO_DATE(V_FECHA_FIN, 'DD/MM/YYYY'))
-            AND E.TIPO_TRANSACCION IN 
-            (
-                SELECT 
-                    TIPO_TRANSACCION
-                FROM GRAL_TIPOS_TRANSAC_MODULOS GTTM
-                WHERE CODIGO_MODULO = 8
-                AND CARGO_ABONO   = 'A'
-            )
-            AND E.SERIE != 'A'
-            GROUP BY E.CODIGO_EMPRESA, G.NUMERO_CUENTA, F.CODIGO_CC
-        )
-        SELECT
-            (
-                CASE 
-                    WHEN NUMERO_CUENTA IS NULL THEN (CODIGO_EMPRESA || ' - Otros Registros Centro Costo (' || CODIGO_CC || ')')
-                    ELSE NVL(SAF.FNC_GET_NOMBRE_CLIENTE(CODIGO_EMPRESA, NUMERO_CUENTA), CODIGO_EMPRESA || ' - Otros Registros Numero Cliente (' || NUMERO_CUENTA || ')')
-                END 
-            ) DESCRIPCION,
-            NUMERO_CUENTA,
-            NVL(SUM(VALOR_INGRESO), 0) VALOR_INGRESO,
-            NVL(SUM(VALOR_EGRESO), 0) VALOR_EGRESO
-        FROM VALORES
-        GROUP BY 
-            NUMERO_CUENTA,
-            (
-                CASE 
-                    WHEN NUMERO_CUENTA IS NULL THEN (CODIGO_EMPRESA || ' - Otros Registros Centro Costo (' || CODIGO_CC || ')')
-                    ELSE NVL(SAF.FNC_GET_NOMBRE_CLIENTE(CODIGO_EMPRESA, NUMERO_CUENTA), CODIGO_EMPRESA || ' - Otros Registros Numero Cliente (' || NUMERO_CUENTA || ')')
-                END 
-            );
     
     CURSOR C_INVERSION_PRESTAMO_SISTEMA(V_MONEDA NUMBER, V_FECHA_INICIO DATE, V_FECHA_FIN DATE, V_EMPRESAS VARCHAR2) IS
         WITH DATOS AS
         (
             SELECT 
                 E.CODIGO_EMPRESA,
-                F.CODIGO_CC,
+                NVL(F.CODIGO_CC, E.CODIGO_CC) CODIGO_CC,
                 0 VALOR_EGRESO,
                 SAF.APX_FNC_CONVERSION_MONEDAS
                 (
-                    NVL(F.VALOR, 0),
+                    NVL(NVL(F.VALOR, E.VALOR * E.TASAC), 0),
                     1,
                     V_MONEDA,
                     NULL,
                     NULL
                 ) VALOR_INGRESO
-            FROM BCOMOVIG E, BCOMOVID F
-            WHERE E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
-            AND E.CODMAE = F.CODMAE
-            AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
-            AND E.SERIE = F.SERIE
-            AND E.NUMDOC = F.NUMDOC
-            AND E.CODIGO_EMPRESA > 99
+            FROM BCOMOVIG E
+            LEFT JOIN BCOMOVID F
+                ON E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
+                AND E.CODMAE = F.CODMAE
+                AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
+                AND E.SERIE = F.SERIE
+                AND E.NUMDOC = F.NUMDOC
+            WHERE E.CODIGO_EMPRESA > 99
             AND E.CODIGO_EMPRESA IN
             (
                 SELECT 
@@ -171,28 +72,31 @@ RETURN FDU_T_CUADRO_ORIGEN_USO_FONDO AS
                 WHERE CODIGO_MODULO = 8
                 AND CARGO_ABONO   = 'C'
             )
-            AND E.SERIE != 'A'
-            AND F.CODIGO_CC LIKE '4010%'
+            AND E.TIPO_TRANSACCION NOT IN (14, 15)
+            AND E.SERIE NOT IN ('PD')
+            AND E.FANULA IS NULL
+            AND NVL(F.CODIGO_CC, E.CODIGO_CC) LIKE '4%'
             UNION ALL
             SELECT 
                 E.CODIGO_EMPRESA,
-                F.CODIGO_CC,
+                NVL(F.CODIGO_CC, E.CODIGO_CC) CODIGO_CC,
                 SAF.APX_FNC_CONVERSION_MONEDAS
                 (
-                    NVL(F.VALOR, 0),
+                    NVL(NVL(F.VALOR, E.VALOR * E.TASAC), 0),
                     1,
                     V_MONEDA,
                     NULL,
                     NULL
                 ) VALOR_EGRESO,
                 0 VALOR_INGRESO
-            FROM BCOMOVIG E, BCOMOVID F
-            WHERE E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
-            AND E.CODMAE = F.CODMAE
-            AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
-            AND E.SERIE = F.SERIE
-            AND E.NUMDOC = F.NUMDOC
-            AND E.CODIGO_EMPRESA > 99
+            FROM BCOMOVIG E
+            LEFT JOIN BCOMOVID F
+                ON E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
+                AND E.CODMAE = F.CODMAE
+                AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
+                AND E.SERIE = F.SERIE
+                AND E.NUMDOC = F.NUMDOC
+            WHERE E.CODIGO_EMPRESA > 99
             AND E.CODIGO_EMPRESA IN
             (
                 SELECT 
@@ -209,8 +113,9 @@ RETURN FDU_T_CUADRO_ORIGEN_USO_FONDO AS
                 WHERE CODIGO_MODULO = 8
                 AND CARGO_ABONO   = 'A'
             )
-            AND E.SERIE != 'A'
-            AND F.CODIGO_CC LIKE '4010%'
+            AND E.TIPO_TRANSACCION NOT IN (14, 15)
+            AND E.FANULA IS NULL
+            AND NVL(F.CODIGO_CC, E.CODIGO_CC) LIKE '4%'
         )
         SELECT
             CODIGO_CC,
@@ -224,23 +129,24 @@ RETURN FDU_T_CUADRO_ORIGEN_USO_FONDO AS
         WITH DATOS AS
         (
             SELECT 
-                F.CODIGO_CC,
+                NVL(F.CODIGO_CC, E.CODIGO_CC) CODIGO_CC,
                 0 VALOR_EGRESO,
                 SAF.APX_FNC_CONVERSION_MONEDAS
                 (
-                    NVL(F.VALOR, 0),
+                    NVL(NVL(F.VALOR, E.VALOR * E.TASAC), 0),
                     1,
                     V_MONEDA,
                     NULL,
                     NULL
                 ) VALOR_INGRESO
-            FROM BCOMOVIG E, BCOMOVID F
-            WHERE E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
-            AND E.CODMAE = F.CODMAE
-            AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
-            AND E.SERIE = F.SERIE
-            AND E.NUMDOC = F.NUMDOC
-            AND E.CODIGO_EMPRESA > 99
+            FROM BCOMOVIG E
+            LEFT JOIN BCOMOVID F
+                ON E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
+                AND E.CODMAE = F.CODMAE
+                AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
+                AND E.SERIE = F.SERIE
+                AND E.NUMDOC = F.NUMDOC
+            WHERE E.CODIGO_EMPRESA > 99
             AND E.CODIGO_EMPRESA IN
             (
                 SELECT 
@@ -257,27 +163,30 @@ RETURN FDU_T_CUADRO_ORIGEN_USO_FONDO AS
                 WHERE CODIGO_MODULO = 8
                 AND CARGO_ABONO   = 'C'
             )
-            AND E.SERIE != 'A'
-            AND F.CODIGO_CC LIKE '2010%'
+            AND E.TIPO_TRANSACCION NOT IN (14, 15)
+            AND E.SERIE NOT IN ('PD')
+            AND E.FANULA IS NULL
+            AND NVL(F.CODIGO_CC, E.CODIGO_CC) LIKE '2%'
             UNION ALL
             SELECT 
-                F.CODIGO_CC,
+                NVL(F.CODIGO_CC, E.CODIGO_CC) CODIGO_CC,
                 SAF.APX_FNC_CONVERSION_MONEDAS
                 (
-                    NVL(F.VALOR, 0),
+                    NVL(NVL(F.VALOR, E.VALOR * E.TASAC), 0),
                     1,
                     V_MONEDA,
                     NULL,
                     NULL
                 ) VALOR_EGRESO,
                 0 VALOR_INGRESO
-            FROM BCOMOVIG E, BCOMOVID F
-            WHERE E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
-            AND E.CODMAE = F.CODMAE
-            AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
-            AND E.SERIE = F.SERIE
-            AND E.NUMDOC = F.NUMDOC
-            AND E.CODIGO_EMPRESA > 99
+            FROM BCOMOVIG E
+            LEFT JOIN BCOMOVID F
+                ON E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
+                AND E.CODMAE = F.CODMAE
+                AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
+                AND E.SERIE = F.SERIE
+                AND E.NUMDOC = F.NUMDOC
+            WHERE E.CODIGO_EMPRESA > 99
             AND E.CODIGO_EMPRESA IN
             (
                 SELECT 
@@ -294,47 +203,146 @@ RETURN FDU_T_CUADRO_ORIGEN_USO_FONDO AS
                 WHERE CODIGO_MODULO = 8
                 AND CARGO_ABONO   = 'A'
             )
-            AND E.SERIE != 'A'
-            AND F.CODIGO_CC LIKE '2010%'
+            AND E.TIPO_TRANSACCION NOT IN (14, 15)
+            AND E.FANULA IS NULL
+            AND NVL(F.CODIGO_CC, E.CODIGO_CC) LIKE '2%'
+        ), ORDEN_DATOS AS
+        (
+            SELECT
+                B.NUMERO_CUENTA,
+                B.NUMERO_CUENTA || ' - ' || SAF.FNC_GET_NOMBRE_CLIENTE(229, B.NUMERO_CUENTA) DESCRIPCION,
+                (
+                    CASE
+                        WHEN SAF.FNC_GET_NOMBRE_CLIENTE(229, B.NUMERO_CUENTA) IS NOT NULL THEN 1
+                        ELSE 2
+                    END
+                ) ESTADO_CLIENTE,
+                SUM(A.VALOR_EGRESO) VALOR_EGRESO,
+                SUM(A.VALOR_INGRESO) VALOR_INGRESO
+            FROM DATOS A
+            INNER JOIN SAF.EST_PROYECTOS B
+                ON B.CODIGO_PROYECTO = A.CODIGO_CC
+                AND B.NUMERO_CUENTA IS NOT NULL
+            GROUP BY B.NUMERO_CUENTA, B.NUMERO_CUENTA || ' - ' || SAF.FNC_GET_NOMBRE_CLIENTE(229, B.NUMERO_CUENTA)
         )
         SELECT
-            B.NUMERO_CUENTA,
-            SAF.FNC_GET_NOMBRE_CLIENTE(229, B.NUMERO_CUENTA) DESCRIPCION,
+            NUMERO_CUENTA,
+            DESCRIPCION,
+            ESTADO_CLIENTE,
+            VALOR_EGRESO,
+            VALOR_INGRESO
+        FROM ORDEN_DATOS
+        ORDER BY (VALOR_INGRESO - VALOR_EGRESO) DESC;
+    
+    CURSOR C_SIC(V_MONEDA NUMBER, V_FECHA_INICIO DATE, V_FECHA_FIN DATE, V_EMPRESAS VARCHAR2) IS
+        WITH DATOS AS
+        (
+            SELECT 
+                NVL(F.CODIGO_CC, E.CODIGO_CC) CODIGO_CC,
+                0 VALOR_EGRESO,
+                SAF.APX_FNC_CONVERSION_MONEDAS
+                (
+                    NVL(NVL(F.VALOR, E.VALOR * E.TASAC), 0),
+                    1,
+                    V_MONEDA,
+                    NULL,
+                    NULL
+                ) VALOR_INGRESO
+            FROM BCOMOVIG E
+            LEFT JOIN BCOMOVID F
+                ON E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
+                AND E.CODMAE = F.CODMAE
+                AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
+                AND E.SERIE = F.SERIE
+                AND E.NUMDOC = F.NUMDOC
+            WHERE E.CODIGO_EMPRESA > 99
+            AND E.CODIGO_EMPRESA IN
             (
-                CASE
-                    WHEN SAF.FNC_GET_NOMBRE_CLIENTE(229, B.NUMERO_CUENTA) IS NOT NULL THEN 1
-                    ELSE 2
-                END
-            ) ESTADO_CLIENTE,
+                SELECT 
+                    REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                FROM 
+                    dual CONNECT BY REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) IS NOT NULL
+            )
+            AND TRUNC(E.FEDOC) BETWEEN TRUNC(TO_DATE(V_FECHA_INICIO, 'DD/MM/YYYY')) AND TRUNC(TO_DATE(V_FECHA_FIN, 'DD/MM/YYYY'))
+            AND E.TIPO_TRANSACCION IN 
+            (
+                SELECT 
+                    TIPO_TRANSACCION
+                FROM GRAL_TIPOS_TRANSAC_MODULOS GTTM
+                WHERE CODIGO_MODULO = 8
+                AND CARGO_ABONO   = 'C'
+            )
+            AND E.TIPO_TRANSACCION NOT IN (14, 15)
+            AND E.SERIE NOT IN ('PD')
+            AND E.FANULA IS NULL
+            AND NVL(F.CODIGO_CC, E.CODIGO_CC) LIKE '1%'
+            UNION ALL
+            SELECT 
+                NVL(F.CODIGO_CC, E.CODIGO_CC) CODIGO_CC,
+                SAF.APX_FNC_CONVERSION_MONEDAS
+                (
+                    NVL(NVL(F.VALOR, E.VALOR * E.TASAC), 0),
+                    1,
+                    V_MONEDA,
+                    NULL,
+                    NULL
+                ) VALOR_EGRESO,
+                0 VALOR_INGRESO
+            FROM BCOMOVIG E
+            LEFT JOIN BCOMOVID F
+                ON E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
+                AND E.CODMAE = F.CODMAE
+                AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
+                AND E.SERIE = F.SERIE
+                AND E.NUMDOC = F.NUMDOC
+            WHERE E.CODIGO_EMPRESA > 99
+            AND E.CODIGO_EMPRESA IN
+            (
+                SELECT 
+                    REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                FROM 
+                    dual CONNECT BY REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) IS NOT NULL
+            )
+            AND TRUNC(E.FEDOC) BETWEEN TRUNC(TO_DATE(V_FECHA_INICIO, 'DD/MM/YYYY')) AND TRUNC(TO_DATE(V_FECHA_FIN, 'DD/MM/YYYY'))
+            AND E.TIPO_TRANSACCION IN 
+            (
+                SELECT 
+                    TIPO_TRANSACCION
+                FROM GRAL_TIPOS_TRANSAC_MODULOS GTTM
+                WHERE CODIGO_MODULO = 8
+                AND CARGO_ABONO   = 'A'
+            )
+            AND E.TIPO_TRANSACCION NOT IN (14, 15)
+            AND E.FANULA IS NULL
+            AND NVL(F.CODIGO_CC, E.CODIGO_CC) LIKE '1%'
+        )
+        SELECT
             SUM(A.VALOR_EGRESO) VALOR_EGRESO,
             SUM(A.VALOR_INGRESO) VALOR_INGRESO
-        FROM DATOS A
-        INNER JOIN SAF.EST_PROYECTOS B
-            ON B.CODIGO_PROYECTO = A.CODIGO_CC
-            AND B.NUMERO_CUENTA IS NOT NULL
-        GROUP BY B.NUMERO_CUENTA, SAF.FNC_GET_NOMBRE_CLIENTE(229, B.NUMERO_CUENTA);
-    
+        FROM DATOS A;
+
     CURSOR C_OTROS_REGISTROS(V_MONEDA NUMBER, V_FECHA_INICIO DATE, V_FECHA_FIN DATE, V_EMPRESAS VARCHAR2) IS
         WITH DATOS AS
         (
             SELECT 
-                F.CODIGO_CC,
+                NVL(F.CODIGO_CC, E.CODIGO_CC) CODIGO_CC,
                 0 VALOR_EGRESO,
                 SAF.APX_FNC_CONVERSION_MONEDAS
                 (
-                    NVL(F.VALOR, 0),
+                    NVL(NVL(F.VALOR, E.VALOR * E.TASAC), 0),
                     1,
                     V_MONEDA,
                     NULL,
                     NULL
                 ) VALOR_INGRESO
-            FROM BCOMOVIG E, BCOMOVID F
-            WHERE E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
-            AND E.CODMAE = F.CODMAE
-            AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
-            AND E.SERIE = F.SERIE
-            AND E.NUMDOC = F.NUMDOC
-            AND E.CODIGO_EMPRESA > 99
+            FROM BCOMOVIG E
+            LEFT JOIN BCOMOVID F
+                ON E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
+                AND E.CODMAE = F.CODMAE
+                AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
+                AND E.SERIE = F.SERIE
+                AND E.NUMDOC = F.NUMDOC
+            WHERE E.CODIGO_EMPRESA > 99
             AND E.CODIGO_EMPRESA IN
             (
                 SELECT 
@@ -351,27 +359,30 @@ RETURN FDU_T_CUADRO_ORIGEN_USO_FONDO AS
                 WHERE CODIGO_MODULO = 8
                 AND CARGO_ABONO   = 'C'
             )
-            AND E.SERIE != 'A'
-            AND F.CODIGO_CC LIKE '2010%'
+            AND E.TIPO_TRANSACCION NOT IN (14, 15)
+            AND E.SERIE NOT IN ('PD')
+            AND E.FANULA IS NULL
+            AND NVL(F.CODIGO_CC, E.CODIGO_CC) LIKE '2%'
             UNION ALL
             SELECT 
-                F.CODIGO_CC,
+                NVL(F.CODIGO_CC, E.CODIGO_CC) CODIGO_CC,
                 SAF.APX_FNC_CONVERSION_MONEDAS
                 (
-                    NVL(F.VALOR, 0),
+                    NVL(NVL(F.VALOR, E.VALOR * E.TASAC), 0),
                     1,
                     V_MONEDA,
                     NULL,
                     NULL
                 ) VALOR_EGRESO,
                 0 VALOR_INGRESO
-            FROM BCOMOVIG E, BCOMOVID F
-            WHERE E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
-            AND E.CODMAE = F.CODMAE
-            AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
-            AND E.SERIE = F.SERIE
-            AND E.NUMDOC = F.NUMDOC
-            AND E.CODIGO_EMPRESA > 99
+            FROM BCOMOVIG E
+            LEFT JOIN BCOMOVID F
+                ON E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
+                AND E.CODMAE = F.CODMAE
+                AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
+                AND E.SERIE = F.SERIE
+                AND E.NUMDOC = F.NUMDOC
+            WHERE E.CODIGO_EMPRESA > 99
             AND E.CODIGO_EMPRESA IN
             (
                 SELECT 
@@ -388,8 +399,9 @@ RETURN FDU_T_CUADRO_ORIGEN_USO_FONDO AS
                 WHERE CODIGO_MODULO = 8
                 AND CARGO_ABONO   = 'A'
             )
-            AND E.SERIE != 'A'
-            AND F.CODIGO_CC LIKE '2010%'
+            AND E.TIPO_TRANSACCION NOT IN (14, 15)
+            AND E.FANULA IS NULL
+            AND NVL(F.CODIGO_CC, E.CODIGO_CC) LIKE '2%'
         )
         SELECT
             A.CODIGO_CC,
@@ -410,7 +422,6 @@ RETURN FDU_T_CUADRO_ORIGEN_USO_FONDO AS
         FROM DATOS A
         LEFT JOIN SAF.EST_PROYECTOS B
             ON B.CODIGO_PROYECTO = A.CODIGO_CC
-            AND B.NUMERO_CUENTA IS NULL
         WHERE B.CODIGO_PROYECTO IS NULL
         GROUP BY A.CODIGO_CC, (A.CODIGO_CC || ' - Centro de Costo sin proyecto asignado');
 
@@ -514,7 +525,94 @@ RETURN FDU_T_CUADRO_ORIGEN_USO_FONDO AS
             ES_PRESTAMO
         FROM DATOS
         GROUP BY TIPO_DESTINATARIO, ES_PRESTAMO, TIPO_RENGLON;
-   
+    
+    CURSOR C_DATOS_SIN_CC(V_MONEDA NUMBER, V_FECHA_INICIO DATE, V_FECHA_FIN DATE, V_EMPRESAS VARCHAR2) IS
+        WITH DATOS AS
+        (
+            SELECT 
+                NVL(F.CODIGO_CC, E.CODIGO_CC) CODIGO_CC,
+                0 VALOR_EGRESO,
+                SAF.APX_FNC_CONVERSION_MONEDAS
+                (
+                    NVL(NVL(F.VALOR, E.VALOR * E.TASAC), 0),
+                    1,
+                    V_MONEDA,
+                    NULL,
+                    NULL
+                ) VALOR_INGRESO
+            FROM BCOMOVIG E
+            LEFT JOIN BCOMOVID F
+                ON E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
+                AND E.CODMAE = F.CODMAE
+                AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
+                AND E.SERIE = F.SERIE
+                AND E.NUMDOC = F.NUMDOC
+            WHERE E.CODIGO_EMPRESA > 99
+            AND E.CODIGO_EMPRESA IN
+            (
+                SELECT 
+                    REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                FROM 
+                    dual CONNECT BY REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) IS NOT NULL
+            )
+            AND TRUNC(E.FEDOC) BETWEEN TRUNC(TO_DATE(V_FECHA_INICIO, 'DD/MM/YYYY')) AND TRUNC(TO_DATE(V_FECHA_FIN, 'DD/MM/YYYY'))
+            AND E.TIPO_TRANSACCION IN 
+            (
+                SELECT 
+                    TIPO_TRANSACCION
+                FROM GRAL_TIPOS_TRANSAC_MODULOS GTTM
+                WHERE CODIGO_MODULO = 8
+                AND CARGO_ABONO   = 'C'
+            )
+            AND E.TIPO_TRANSACCION NOT IN (14, 15)
+            AND E.SERIE NOT IN ('PD')
+            AND E.FANULA IS NULL
+            AND NVL(F.CODIGO_CC, E.CODIGO_CC) IS NULL
+            UNION ALL
+            SELECT 
+                NVL(F.CODIGO_CC, E.CODIGO_CC) CODIGO_CC,
+                SAF.APX_FNC_CONVERSION_MONEDAS
+                (
+                    NVL(NVL(F.VALOR, E.VALOR * E.TASAC), 0),
+                    1,
+                    V_MONEDA,
+                    NULL,
+                    NULL
+                ) VALOR_EGRESO,
+                0 VALOR_INGRESO
+            FROM BCOMOVIG E
+            LEFT JOIN BCOMOVID F
+                ON E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
+                AND E.CODMAE = F.CODMAE
+                AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
+                AND E.SERIE = F.SERIE
+                AND E.NUMDOC = F.NUMDOC
+            WHERE E.CODIGO_EMPRESA > 99
+            AND E.CODIGO_EMPRESA IN
+            (
+                SELECT 
+                    REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                FROM 
+                    dual CONNECT BY REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) IS NOT NULL
+            )
+            AND TRUNC(E.FEDOC) BETWEEN TRUNC(TO_DATE(V_FECHA_INICIO, 'DD/MM/YYYY')) AND TRUNC(TO_DATE(V_FECHA_FIN, 'DD/MM/YYYY'))
+            AND E.TIPO_TRANSACCION IN 
+            (
+                SELECT 
+                    TIPO_TRANSACCION
+                FROM GRAL_TIPOS_TRANSAC_MODULOS GTTM
+                WHERE CODIGO_MODULO = 8
+                AND CARGO_ABONO   = 'A'
+            )
+            AND E.TIPO_TRANSACCION NOT IN (14, 15)
+            AND E.FANULA IS NULL
+            AND NVL(F.CODIGO_CC, E.CODIGO_CC) IS NULL
+        )
+        SELECT
+            NVL(SUM(VALOR_EGRESO), 0) VALOR_EGRESO,
+            NVL(SUM(VALOR_INGRESO), 0) VALOR_INGRESO
+        FROM DATOS;
+
 	CURSOR C_SUMA_SUB_TOTAL(P_FDU_T_CUADRO_ORIGEN_USO_FONDO FDU_T_CUADRO_ORIGEN_USO_FONDO) IS
 		SELECT
 			ID_PADRE,
@@ -552,7 +650,260 @@ RETURN FDU_T_CUADRO_ORIGEN_USO_FONDO AS
             FROM SAF.PLANTILLA_ASIGNACION_NOTAS A
             WHERE TIPO_REPORTE = 7
         );
-   
+    
+    CURSOR C_PROYECTOS_FILTROS_TODO(V_MONEDA NUMBER, V_FECHA_INICIO DATE, V_FECHA_FIN DATE, V_EMPRESAS VARCHAR2,
+            V_CLIENTE_F VARCHAR2, V_PROYECTO_F VARCHAR2) IS
+        WITH DATOS AS
+        (
+            SELECT 
+                NVL(F.CODIGO_CC, E.CODIGO_CC) CODIGO_CC,
+                0 VALOR_EGRESO,
+                SAF.APX_FNC_CONVERSION_MONEDAS
+                (
+                    NVL(NVL(F.VALOR, E.VALOR * E.TASAC), 0),
+                    1,
+                    V_MONEDA,
+                    NULL,
+                    NULL
+                ) VALOR_INGRESO
+            FROM BCOMOVIG E
+            LEFT JOIN BCOMOVID F
+                ON E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
+                AND E.CODMAE = F.CODMAE
+                AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
+                AND E.SERIE = F.SERIE
+                AND E.NUMDOC = F.NUMDOC
+            WHERE E.CODIGO_EMPRESA > 99
+            AND E.CODIGO_EMPRESA IN
+            (
+                SELECT 
+                    REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                FROM 
+                    dual CONNECT BY REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) IS NOT NULL
+            )
+            AND TRUNC(E.FEDOC) BETWEEN TRUNC(TO_DATE(V_FECHA_INICIO, 'DD/MM/YYYY')) AND TRUNC(TO_DATE(V_FECHA_FIN, 'DD/MM/YYYY'))
+            AND E.TIPO_TRANSACCION IN 
+            (
+                SELECT 
+                    TIPO_TRANSACCION
+                FROM GRAL_TIPOS_TRANSAC_MODULOS GTTM
+                WHERE CODIGO_MODULO = 8
+                AND CARGO_ABONO   = 'C'
+            )
+            AND E.TIPO_TRANSACCION NOT IN (14, 15)
+            AND E.SERIE NOT IN ('PD')
+            AND E.FANULA IS NULL
+            AND NVL(F.CODIGO_CC, E.CODIGO_CC) LIKE '2%'
+            UNION ALL
+            SELECT 
+                NVL(F.CODIGO_CC, E.CODIGO_CC) CODIGO_CC,
+                SAF.APX_FNC_CONVERSION_MONEDAS
+                (
+                    NVL(NVL(F.VALOR, E.VALOR * E.TASAC), 0),
+                    1,
+                    V_MONEDA,
+                    NULL,
+                    NULL
+                ) VALOR_EGRESO,
+                0 VALOR_INGRESO
+            FROM BCOMOVIG E
+            LEFT JOIN BCOMOVID F
+                ON E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
+                AND E.CODMAE = F.CODMAE
+                AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
+                AND E.SERIE = F.SERIE
+                AND E.NUMDOC = F.NUMDOC
+            WHERE E.CODIGO_EMPRESA > 99
+            AND E.CODIGO_EMPRESA IN
+            (
+                SELECT 
+                    REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                FROM 
+                    dual CONNECT BY REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) IS NOT NULL
+            )
+            AND TRUNC(E.FEDOC) BETWEEN TRUNC(TO_DATE(V_FECHA_INICIO, 'DD/MM/YYYY')) AND TRUNC(TO_DATE(V_FECHA_FIN, 'DD/MM/YYYY'))
+            AND E.TIPO_TRANSACCION IN 
+            (
+                SELECT 
+                    TIPO_TRANSACCION
+                FROM GRAL_TIPOS_TRANSAC_MODULOS GTTM
+                WHERE CODIGO_MODULO = 8
+                AND CARGO_ABONO   = 'A'
+            )
+            AND E.TIPO_TRANSACCION NOT IN (14, 15)
+            AND E.FANULA IS NULL
+            AND NVL(F.CODIGO_CC, E.CODIGO_CC) LIKE '2%'
+        ), ORDEN_DATOS AS
+        (
+            SELECT
+                B.NUMERO_CUENTA,
+                B.NUMERO_CUENTA || ' - ' || SAF.FNC_GET_NOMBRE_CLIENTE(229, B.NUMERO_CUENTA) DESCRIPCION,
+                (
+                    CASE
+                        WHEN SAF.FNC_GET_NOMBRE_CLIENTE(229, B.NUMERO_CUENTA) IS NOT NULL THEN 1
+                        ELSE 2
+                    END
+                ) ESTADO_CLIENTE,
+                SUM(A.VALOR_EGRESO) VALOR_EGRESO,
+                SUM(A.VALOR_INGRESO) VALOR_INGRESO
+            FROM DATOS A
+            INNER JOIN SAF.EST_PROYECTOS B
+                ON B.CODIGO_PROYECTO = A.CODIGO_CC
+                AND B.NUMERO_CUENTA IS NOT NULL
+                AND B.NUMERO_CUENTA IN 
+                (
+                    SELECT 
+                        REGEXP_SUBSTR(V_CLIENTE_F, '[^\:]+', 1, level) AS NUMERO_CUENTA
+                    FROM 
+                        dual CONNECT BY REGEXP_SUBSTR(V_CLIENTE_F, '[^\:]+', 1, level) IS NOT NULL
+                )
+            GROUP BY B.NUMERO_CUENTA, B.NUMERO_CUENTA || ' - ' || SAF.FNC_GET_NOMBRE_CLIENTE(229, B.NUMERO_CUENTA)
+        )
+        SELECT
+            NUMERO_CUENTA,
+            DESCRIPCION,
+            ESTADO_CLIENTE,
+            VALOR_EGRESO,
+            VALOR_INGRESO
+        FROM ORDEN_DATOS
+        ORDER BY (VALOR_INGRESO - VALOR_EGRESO) DESC;
+    
+    CURSOR C_PROYECTOS_FILTROS(V_MONEDA NUMBER, V_FECHA_INICIO DATE, V_FECHA_FIN DATE, V_EMPRESAS VARCHAR2,
+            V_CLIENTE_F VARCHAR2, V_PROYECTO_F VARCHAR2) IS
+        WITH DATOS AS
+        (
+            SELECT 
+                NVL(F.CODIGO_CC, E.CODIGO_CC) CODIGO_CC,
+                0 VALOR_EGRESO,
+                SAF.APX_FNC_CONVERSION_MONEDAS
+                (
+                    NVL(NVL(F.VALOR, E.VALOR * E.TASAC), 0),
+                    1,
+                    V_MONEDA,
+                    NULL,
+                    NULL
+                ) VALOR_INGRESO
+            FROM BCOMOVIG E
+            LEFT JOIN BCOMOVID F
+                ON E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
+                AND E.CODMAE = F.CODMAE
+                AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
+                AND E.SERIE = F.SERIE
+                AND E.NUMDOC = F.NUMDOC
+            WHERE E.CODIGO_EMPRESA > 99
+            AND E.CODIGO_EMPRESA IN
+            (
+                SELECT 
+                    REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                FROM 
+                    dual CONNECT BY REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) IS NOT NULL
+            )
+            AND TRUNC(E.FEDOC) BETWEEN TRUNC(TO_DATE(V_FECHA_INICIO, 'DD/MM/YYYY')) AND TRUNC(TO_DATE(V_FECHA_FIN, 'DD/MM/YYYY'))
+            AND E.TIPO_TRANSACCION IN 
+            (
+                SELECT 
+                    TIPO_TRANSACCION
+                FROM GRAL_TIPOS_TRANSAC_MODULOS GTTM
+                WHERE CODIGO_MODULO = 8
+                AND CARGO_ABONO   = 'C'
+            )
+            AND E.TIPO_TRANSACCION NOT IN (14, 15)
+            AND E.SERIE NOT IN ('PD')
+            AND E.FANULA IS NULL
+            AND NVL(F.CODIGO_CC, E.CODIGO_CC) LIKE '2%'
+            UNION ALL
+            SELECT 
+                NVL(F.CODIGO_CC, E.CODIGO_CC) CODIGO_CC,
+                SAF.APX_FNC_CONVERSION_MONEDAS
+                (
+                    NVL(NVL(F.VALOR, E.VALOR * E.TASAC), 0),
+                    1,
+                    V_MONEDA,
+                    NULL,
+                    NULL
+                ) VALOR_EGRESO,
+                0 VALOR_INGRESO
+            FROM BCOMOVIG E
+            LEFT JOIN BCOMOVID F
+                ON E.CODIGO_EMPRESA = F.CODIGO_EMPRESA
+                AND E.CODMAE = F.CODMAE
+                AND E.TIPO_TRANSACCION = F.TIPO_TRANSACCION
+                AND E.SERIE = F.SERIE
+                AND E.NUMDOC = F.NUMDOC
+            WHERE E.CODIGO_EMPRESA > 99
+            AND E.CODIGO_EMPRESA IN
+            (
+                SELECT 
+                    REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) AS CODIGO_EMPRESA
+                FROM 
+                    dual CONNECT BY REGEXP_SUBSTR(V_EMPRESAS, '[^\:]+', 1, level) IS NOT NULL
+            )
+            AND TRUNC(E.FEDOC) BETWEEN TRUNC(TO_DATE(V_FECHA_INICIO, 'DD/MM/YYYY')) AND TRUNC(TO_DATE(V_FECHA_FIN, 'DD/MM/YYYY'))
+            AND E.TIPO_TRANSACCION IN 
+            (
+                SELECT 
+                    TIPO_TRANSACCION
+                FROM GRAL_TIPOS_TRANSAC_MODULOS GTTM
+                WHERE CODIGO_MODULO = 8
+                AND CARGO_ABONO   = 'A'
+            )
+            AND E.TIPO_TRANSACCION NOT IN (14, 15)
+            AND E.FANULA IS NULL
+            AND NVL(F.CODIGO_CC, E.CODIGO_CC) LIKE '2%'
+        ), ORDEN_DATOS AS
+        (
+            SELECT
+                B.NUMERO_CUENTA,
+                B.NUMERO_CUENTA || ' - ' || SAF.FNC_GET_NOMBRE_CLIENTE(229, B.NUMERO_CUENTA) DESCRIPCION,
+                (
+                    CASE
+                        WHEN SAF.FNC_GET_NOMBRE_CLIENTE(229, B.NUMERO_CUENTA) IS NOT NULL THEN 1
+                        ELSE 2
+                    END
+                ) ESTADO_CLIENTE,
+                SUM(A.VALOR_EGRESO) VALOR_EGRESO,
+                SUM(A.VALOR_INGRESO) VALOR_INGRESO
+            FROM DATOS A
+            INNER JOIN SAF.EST_PROYECTOS B
+                ON B.CODIGO_PROYECTO = A.CODIGO_CC
+                AND B.NUMERO_CUENTA IS NOT NULL
+                AND B.NUMERO_CUENTA IN 
+                (
+                    SELECT 
+                        REGEXP_SUBSTR(V_CLIENTE_F, '[^\:]+', 1, level) AS NUMERO_CUENTA
+                    FROM 
+                        dual CONNECT BY REGEXP_SUBSTR(V_CLIENTE_F, '[^\:]+', 1, level) IS NOT NULL
+                )
+                AND B.CODIGO_PROYECTO IN
+                (
+                    SELECT 
+                        REGEXP_SUBSTR(V_PROYECTO_F, '[^\:]+', 1, level) AS CODIGO_PROYECTO
+                    FROM 
+                        dual CONNECT BY REGEXP_SUBSTR(V_PROYECTO_F, '[^\:]+', 1, level) IS NOT NULL
+                )
+            GROUP BY B.NUMERO_CUENTA, B.NUMERO_CUENTA || ' - ' || SAF.FNC_GET_NOMBRE_CLIENTE(229, B.NUMERO_CUENTA)
+        )
+        SELECT
+            NUMERO_CUENTA,
+            DESCRIPCION,
+            ESTADO_CLIENTE,
+            VALOR_EGRESO,
+            VALOR_INGRESO
+        FROM ORDEN_DATOS
+        ORDER BY (VALOR_INGRESO - VALOR_EGRESO) DESC;
+
+    CURSOR C_VECTOR(P_VECTOR VARCHAR2) IS
+        SELECT
+            COUNT(*) CONTADOR
+        FROM
+        (
+            SELECT 
+                REGEXP_SUBSTR(P_VECTOR, '[^\:]+', 1, level) AS NUMERO_CUENTA
+            FROM 
+                dual CONNECT BY REGEXP_SUBSTR(P_VECTOR, '[^\:]+', 1, level) IS NOT NULL
+        )
+        WHERE TO_NUMBER(NUMERO_CUENTA) = '0';
+
 BEGIN
     FOR R_TEMP IN C_ESTRUCTURA_TITULO
     LOOP
@@ -592,119 +943,227 @@ BEGIN
         );
     END LOOP;
 
-    /*FOR R_TEMP IN C_INGRESOS_EGRESOS(P_MONEDA, P_FECHA_INICIO, P_FECHA_FIN, P_EMPRESAS)
-    LOOP
-        V_FDU_T_CUADRO_ORIGEN_USO_FONDO.EXTEND;
-        V_FDU_T_CUADRO_ORIGEN_USO_FONDO(V_FDU_T_CUADRO_ORIGEN_USO_FONDO.LAST) := FDU_OBJECT_CUADRO_ORIGEN_USO_FONDO
-        (
-            NULL,
-            R_TEMP.NUMERO_CUENTA,
-            R_TEMP.DESCRIPCION,
-            R_TEMP.VALOR_INGRESO,
-            R_TEMP.VALOR_EGRESO,
-            R_TEMP.VALOR_INGRESO - R_TEMP.VALOR_EGRESO,
-            'DETALLE',
-            NULL,
-            2,
-            NULL,
-            (
-                CASE
-                    WHEN SAF.FNC_GET_ES_EMPRESA_INTERCOMPANY(R_TEMP.NUMERO_CUENTA) = 'S' THEN 326
-                    ELSE 327
-                END
-            )
-        );
-    END LOOP;*/
-    
-    FOR R_TEMP IN C_INVERSION_PRESTAMO_SISTEMA(P_MONEDA, P_FECHA_INICIO, P_FECHA_FIN, P_EMPRESAS)
-    LOOP
-        V_FDU_T_CUADRO_ORIGEN_USO_FONDO.EXTEND;
-        V_FDU_T_CUADRO_ORIGEN_USO_FONDO(V_FDU_T_CUADRO_ORIGEN_USO_FONDO.LAST) := FDU_OBJECT_CUADRO_ORIGEN_USO_FONDO
-        (
-            NULL,
-            R_TEMP.CODIGO_CC,
-            R_TEMP.DESCRIPCION,
-            R_TEMP.VALOR_INGRESO,
-            R_TEMP.VALOR_EGRESO,
-            R_TEMP.VALOR_INGRESO - R_TEMP.VALOR_EGRESO,
-            'DETALLE',
-            NULL,
-            2,
-            NULL,
-            341
-        );
-    END LOOP;
+    IF P_EMPRESAS IS NOT NULL THEN
 
-    FOR R_TEMP IN C_PROYECTOS(P_MONEDA, P_FECHA_INICIO, P_FECHA_FIN, P_EMPRESAS)
-    LOOP
-        V_FDU_T_CUADRO_ORIGEN_USO_FONDO.EXTEND;
-        V_FDU_T_CUADRO_ORIGEN_USO_FONDO(V_FDU_T_CUADRO_ORIGEN_USO_FONDO.LAST) := FDU_OBJECT_CUADRO_ORIGEN_USO_FONDO
-        (
-            NULL,
-            R_TEMP.NUMERO_CUENTA,
+    IF P_FILTRO = 'N' THEN
+        FOR R_TEMP IN C_INVERSION_PRESTAMO_SISTEMA(P_MONEDA, P_FECHA_INICIO, P_FECHA_FIN, P_EMPRESAS)
+        LOOP
+            V_FDU_T_CUADRO_ORIGEN_USO_FONDO.EXTEND;
+            V_FDU_T_CUADRO_ORIGEN_USO_FONDO(V_FDU_T_CUADRO_ORIGEN_USO_FONDO.LAST) := FDU_OBJECT_CUADRO_ORIGEN_USO_FONDO
             (
-                CASE
-                    WHEN R_TEMP.ESTADO_CLIENTE = 1 THEN R_TEMP.DESCRIPCION
-                    ELSE 'Cliente ' || R_TEMP.NUMERO_CUENTA || ': No esta creado en todas las empresas'
-                END
-            ),
-            R_TEMP.VALOR_INGRESO,
-            R_TEMP.VALOR_EGRESO,
-            R_TEMP.VALOR_INGRESO - R_TEMP.VALOR_EGRESO,
-            'DETALLE',
-            NULL,
-            2,
-            NULL,
+                NULL,
+                R_TEMP.CODIGO_CC,
+                R_TEMP.DESCRIPCION,
+                R_TEMP.VALOR_INGRESO,
+                R_TEMP.VALOR_EGRESO,
+                R_TEMP.VALOR_INGRESO - R_TEMP.VALOR_EGRESO,
+                'DETALLE',
+                NULL,
+                2,
+                NULL,
+                341
+            );
+        END LOOP;
+
+        FOR R_TEMP IN C_PROYECTOS(P_MONEDA, P_FECHA_INICIO, P_FECHA_FIN, P_EMPRESAS)
+        LOOP
+            V_FDU_T_CUADRO_ORIGEN_USO_FONDO.EXTEND;
+            V_FDU_T_CUADRO_ORIGEN_USO_FONDO(V_FDU_T_CUADRO_ORIGEN_USO_FONDO.LAST) := FDU_OBJECT_CUADRO_ORIGEN_USO_FONDO
             (
-                CASE
-                    WHEN R_TEMP.ESTADO_CLIENTE = 1 THEN
+                NULL,
+                R_TEMP.NUMERO_CUENTA,
+                (
+                    CASE
+                        WHEN R_TEMP.ESTADO_CLIENTE = 1 THEN R_TEMP.DESCRIPCION
+                        ELSE 'Cliente ' || R_TEMP.NUMERO_CUENTA || ': No esta creado en todas las empresas'
+                    END
+                ),
+                R_TEMP.VALOR_INGRESO,
+                R_TEMP.VALOR_EGRESO,
+                R_TEMP.VALOR_INGRESO - R_TEMP.VALOR_EGRESO,
+                'DETALLE',
+                NULL,
+                2,
+                NULL,
+                (
+                    CASE
+                        WHEN R_TEMP.ESTADO_CLIENTE = 1 THEN
+                            CASE
+                                WHEN SAF.FNC_GET_ES_EMPRESA_INTERCOMPANY(R_TEMP.NUMERO_CUENTA) = 'S' THEN 326
+                                ELSE 327
+                            END
+                        ELSE 362
+                    END
+                )
+            );
+        END LOOP;
+
+        FOR R_TEMP IN C_SIC(P_MONEDA, P_FECHA_INICIO, P_FECHA_FIN, P_EMPRESAS)
+        LOOP
+            SELECT 
+                NOMBRE
+            INTO
+                V_NOMBRE
+            FROM SAF.PLANTILLA_ASIGNACION_NOTAS 
+            WHERE TIPO_REPORTE = 7 
+            AND ID = 361;
+        
+            V_FDU_T_CUADRO_ORIGEN_USO_FONDO.EXTEND;
+            V_FDU_T_CUADRO_ORIGEN_USO_FONDO(V_FDU_T_CUADRO_ORIGEN_USO_FONDO.LAST) := FDU_OBJECT_CUADRO_ORIGEN_USO_FONDO
+            (
+                NULL,
+                NULL,
+                V_NOMBRE,
+                NVL(R_TEMP.VALOR_INGRESO, 0),
+                NVL(R_TEMP.VALOR_EGRESO, 0),
+                NVL(R_TEMP.VALOR_INGRESO, 0) - NVL(R_TEMP.VALOR_EGRESO, 0),
+                'DETALLE',
+                NULL,
+                2,
+                NULL,
+                361
+            );
+        END LOOP;
+
+        FOR R_TEMP IN C_DATOS_SIN_CC(P_MONEDA, P_FECHA_INICIO, P_FECHA_FIN, P_EMPRESAS)
+        LOOP
+            SELECT 
+                NOMBRE
+            INTO
+                V_NOMBRE
+            FROM SAF.PLANTILLA_ASIGNACION_NOTAS 
+            WHERE TIPO_REPORTE = 7 
+            AND ID = 381;
+        
+            V_FDU_T_CUADRO_ORIGEN_USO_FONDO.EXTEND;
+            V_FDU_T_CUADRO_ORIGEN_USO_FONDO(V_FDU_T_CUADRO_ORIGEN_USO_FONDO.LAST) := FDU_OBJECT_CUADRO_ORIGEN_USO_FONDO
+            (
+                NULL,
+                NULL,
+                V_NOMBRE,
+                NVL(R_TEMP.VALOR_INGRESO, 0),
+                NVL(R_TEMP.VALOR_EGRESO, 0),
+                NVL(R_TEMP.VALOR_INGRESO, 0) - NVL(R_TEMP.VALOR_EGRESO, 0),
+                'DETALLE',
+                NULL,
+                2,
+                NULL,
+                381
+            );
+        END LOOP;
+
+        FOR R_TEMP IN C_OTROS_REGISTROS(P_MONEDA, P_FECHA_INICIO, P_FECHA_FIN, P_EMPRESAS)
+        LOOP
+            V_FDU_T_CUADRO_ORIGEN_USO_FONDO.EXTEND;
+            V_FDU_T_CUADRO_ORIGEN_USO_FONDO(V_FDU_T_CUADRO_ORIGEN_USO_FONDO.LAST) := FDU_OBJECT_CUADRO_ORIGEN_USO_FONDO
+            (
+                NULL,
+                R_TEMP.CODIGO_CC,
+                R_TEMP.DESCRIPCION,
+                R_TEMP.VALOR_INGRESO,
+                R_TEMP.VALOR_EGRESO,
+                R_TEMP.VALOR_INGRESO - R_TEMP.VALOR_EGRESO,
+                'DETALLE',
+                NULL,
+                2,
+                NULL,
+                362
+            );
+        END LOOP;
+
+        FOR R_TEMP IN C_PRESTAMOS_INVERSIONES(P_MONEDA, P_FECHA_INICIO, P_FECHA_FIN, P_EMPRESAS)
+        LOOP
+            V_FDU_T_CUADRO_ORIGEN_USO_FONDO.EXTEND;
+            V_FDU_T_CUADRO_ORIGEN_USO_FONDO(V_FDU_T_CUADRO_ORIGEN_USO_FONDO.LAST) := FDU_OBJECT_CUADRO_ORIGEN_USO_FONDO
+            (
+                NULL,
+                NULL,
+                R_TEMP.TIPO_DESTINATARIO,
+                R_TEMP.INGRESO,
+                R_TEMP.EGRESO,
+                R_TEMP.INGRESO - R_TEMP.EGRESO,
+                'DETALLE',
+                NULL,
+                2,
+                NULL,
+                R_TEMP.TIPO_RENGLON
+            );
+        END LOOP;
+    ELSE
+        OPEN C_VECTOR(P_CODIGO_PROYECTO);
+            FETCH C_VECTOR INTO V_CONTADOR;
+        CLOSE C_VECTOR;
+
+        IF V_CONTADOR > 0 THEN
+            FOR R_TEMP IN C_PROYECTOS_FILTROS_TODO(P_MONEDA, P_FECHA_INICIO, P_FECHA_FIN, P_EMPRESAS, P_NUMERO_CUENTA, P_CODIGO_PROYECTO)
+            LOOP
+                V_FDU_T_CUADRO_ORIGEN_USO_FONDO.EXTEND;
+                V_FDU_T_CUADRO_ORIGEN_USO_FONDO(V_FDU_T_CUADRO_ORIGEN_USO_FONDO.LAST) := FDU_OBJECT_CUADRO_ORIGEN_USO_FONDO
+                (
+                    NULL,
+                    R_TEMP.NUMERO_CUENTA,
+                    (
                         CASE
-                            WHEN SAF.FNC_GET_ES_EMPRESA_INTERCOMPANY(R_TEMP.NUMERO_CUENTA) = 'S' THEN 326
-                            ELSE 327
+                            WHEN R_TEMP.ESTADO_CLIENTE = 1 THEN R_TEMP.DESCRIPCION
+                            ELSE 'Cliente ' || R_TEMP.NUMERO_CUENTA || ': No esta creado en todas las empresas'
                         END
-                    ELSE 342
-                END
-            )
-        );
-    END LOOP;
+                    ),
+                    R_TEMP.VALOR_INGRESO,
+                    R_TEMP.VALOR_EGRESO,
+                    R_TEMP.VALOR_INGRESO - R_TEMP.VALOR_EGRESO,
+                    'DETALLE',
+                    NULL,
+                    2,
+                    NULL,
+                    (
+                        CASE
+                            WHEN R_TEMP.ESTADO_CLIENTE = 1 THEN
+                                CASE
+                                    WHEN SAF.FNC_GET_ES_EMPRESA_INTERCOMPANY(R_TEMP.NUMERO_CUENTA) = 'S' THEN 326
+                                    ELSE 327
+                                END
+                            ELSE 362
+                        END
+                    )
+                );
+            END LOOP;
+        ELSE
+            FOR R_TEMP IN C_PROYECTOS_FILTROS(P_MONEDA, P_FECHA_INICIO, P_FECHA_FIN, P_EMPRESAS, P_NUMERO_CUENTA, P_CODIGO_PROYECTO)
+            LOOP
+                V_FDU_T_CUADRO_ORIGEN_USO_FONDO.EXTEND;
+                V_FDU_T_CUADRO_ORIGEN_USO_FONDO(V_FDU_T_CUADRO_ORIGEN_USO_FONDO.LAST) := FDU_OBJECT_CUADRO_ORIGEN_USO_FONDO
+                (
+                    NULL,
+                    R_TEMP.NUMERO_CUENTA,
+                    (
+                        CASE
+                            WHEN R_TEMP.ESTADO_CLIENTE = 1 THEN R_TEMP.DESCRIPCION
+                            ELSE 'Cliente ' || R_TEMP.NUMERO_CUENTA || ': No esta creado en todas las empresas'
+                        END
+                    ),
+                    R_TEMP.VALOR_INGRESO,
+                    R_TEMP.VALOR_EGRESO,
+                    R_TEMP.VALOR_INGRESO - R_TEMP.VALOR_EGRESO,
+                    'DETALLE',
+                    NULL,
+                    2,
+                    NULL,
+                    (
+                        CASE
+                            WHEN R_TEMP.ESTADO_CLIENTE = 1 THEN
+                                CASE
+                                    WHEN SAF.FNC_GET_ES_EMPRESA_INTERCOMPANY(R_TEMP.NUMERO_CUENTA) = 'S' THEN 326
+                                    ELSE 327
+                                END
+                            ELSE 362
+                        END
+                    )
+                );
+            END LOOP;
+        END IF;
+    END IF;
 
-    FOR R_TEMP IN C_OTROS_REGISTROS(P_MONEDA, P_FECHA_INICIO, P_FECHA_FIN, P_EMPRESAS)
-    LOOP
-        V_FDU_T_CUADRO_ORIGEN_USO_FONDO.EXTEND;
-        V_FDU_T_CUADRO_ORIGEN_USO_FONDO(V_FDU_T_CUADRO_ORIGEN_USO_FONDO.LAST) := FDU_OBJECT_CUADRO_ORIGEN_USO_FONDO
-        (
-            NULL,
-            R_TEMP.CODIGO_CC,
-            R_TEMP.DESCRIPCION,
-            R_TEMP.VALOR_INGRESO,
-            R_TEMP.VALOR_EGRESO,
-            R_TEMP.VALOR_INGRESO - R_TEMP.VALOR_EGRESO,
-            'DETALLE',
-            NULL,
-            2,
-            NULL,
-            342
-        );
-    END LOOP;
-
-    FOR R_TEMP IN C_PRESTAMOS_INVERSIONES(P_MONEDA, P_FECHA_INICIO, P_FECHA_FIN, P_EMPRESAS)
-    LOOP
-        V_FDU_T_CUADRO_ORIGEN_USO_FONDO.EXTEND;
-        V_FDU_T_CUADRO_ORIGEN_USO_FONDO(V_FDU_T_CUADRO_ORIGEN_USO_FONDO.LAST) := FDU_OBJECT_CUADRO_ORIGEN_USO_FONDO
-        (
-            NULL,
-            NULL,
-            R_TEMP.TIPO_DESTINATARIO,
-            R_TEMP.INGRESO,
-            R_TEMP.EGRESO,
-            R_TEMP.INGRESO - R_TEMP.EGRESO,
-            'DETALLE',
-            NULL,
-            2,
-            NULL,
-            R_TEMP.TIPO_RENGLON
-        );
-    END LOOP;
+    END IF;
 
     FOR R_TEMP IN C_SUMA_SUB_TOTAL(V_FDU_T_CUADRO_ORIGEN_USO_FONDO)
     LOOP
