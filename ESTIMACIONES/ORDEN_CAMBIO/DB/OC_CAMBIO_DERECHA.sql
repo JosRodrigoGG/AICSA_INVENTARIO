@@ -1,0 +1,160 @@
+CREATE OR REPLACE PROCEDURE SAF.OC_CAMBIO_DERECHA
+(
+    V_CS_COTRATOID NUMBER,
+    v_ID_RENGLON NUMBER,
+    V_TIPO_CODIGO NUMBER,
+    V_ORDEN_CAMBIO NUMBER
+) AS
+    CURSOR C_RENGLONES(P_CONTRATOID NUMBER, P_RENGLON NUMBER, P_ORDEN_CAMBIO NUMBER) IS
+        WITH DATOS_RENGLON AS
+                 (SELECT
+                      ID,
+                      CODIGO_RENGLON,
+                      CODIGO_RENGLON_PADRE,
+                      ORDEN,
+                      LEVEL AS NIVEL
+                  FROM SAF.ORDENES_CAMBIO_RENGLONES_ACTIVIDADES
+                  WHERE ID_ORDEN_CAMBIO = P_ORDEN_CAMBIO
+                    AND ES_PADRE = 1
+                  START WITH CODIGO_RENGLON_PADRE IS NULL
+                  CONNECT BY PRIOR CODIGO_RENGLON = CODIGO_RENGLON_PADRE),
+             DATOS AS
+                 (SELECT A.CODIGO_RENGLON,
+                         A.ORDEN,
+                         A.NIVEL
+                  FROM DATOS_RENGLON A
+                           INNER JOIN DATOS_RENGLON B ON
+                      NVL(B.CODIGO_RENGLON_PADRE, 'SIN_RENGLON') = NVL(A.CODIGO_RENGLON_PADRE, 'SIN_RENGLON') AND
+                      B.NIVEL = B.NIVEL AND
+                      TO_NUMBER(A.ORDEN) < TO_NUMBER(B.ORDEN)
+                  WHERE B.ID = P_RENGLON)
+        SELECT
+            A.CODIGO_RENGLON,
+            A.NIVEL
+        FROM DATOS A
+        WHERE TO_NUMBER(A.ORDEN) = (SELECT MAX(TO_NUMBER(B.ORDEN)) FROM DATOS B);
+
+    CURSOR C_UPDATE_CODIGOS_LIKE (P_CONTRATOID NUMBER, P_RENGLON VARCHAR2, P_ORDEN_CAMBIO NUMBER) IS
+        SELECT
+            ID,
+            CODIGO_RENGLON
+        FROM SAF.ORDENES_CAMBIO_RENGLONES_ACTIVIDADES
+        WHERE ID_ORDEN_CAMBIO = P_ORDEN_CAMBIO
+        AND CODIGO_RENGLON LIKE P_RENGLON || '.%';
+
+    CURSOR C_UPDATE_CODIGOS (P_CONTRATOID NUMBER, P_RENGLON VARCHAR2, P_ORDEN_CAMBIO NUMBER) IS
+        SELECT
+            ID,
+            CODIGO_RENGLON
+        FROM SAF.ORDENES_CAMBIO_RENGLONES_ACTIVIDADES
+        WHERE ID_ORDEN_CAMBIO = P_ORDEN_CAMBIO
+        AND CODIGO_RENGLON = P_RENGLON;
+
+    CURSOR C_UPDATE_PADRES_LIKE (P_CONTRATOID NUMBER, P_RENGLON VARCHAR2, P_ORDEN_CAMBIO NUMBER) IS
+        SELECT
+            ID,
+            CODIGO_RENGLON_PADRE
+        FROM SAF.ORDENES_CAMBIO_RENGLONES_ACTIVIDADES
+        WHERE ID_ORDEN_CAMBIO = P_ORDEN_CAMBIO
+        AND CODIGO_RENGLON_PADRE LIKE P_RENGLON || '.%';
+
+    CURSOR C_UPDATE_PADRES (P_CONTRATOID NUMBER, P_RENGLON VARCHAR2, P_ORDEN_CAMBIO NUMBER) IS
+        SELECT
+            ID,
+            CODIGO_RENGLON_PADRE
+        FROM SAF.ORDENES_CAMBIO_RENGLONES_ACTIVIDADES
+        WHERE ID_ORDEN_CAMBIO = P_ORDEN_CAMBIO
+        AND CODIGO_RENGLON_PADRE = P_RENGLON;
+
+    CURSOR C_CODIGO_RENGLON IS
+        SELECT
+            A.CODIGO_RENGLON
+        FROM SAF.ORDENES_CAMBIO_RENGLONES_ACTIVIDADES A
+        WHERE A.ID_ORDEN_CAMBIO = V_ORDEN_CAMBIO
+          AND A.ES_PADRE = 1
+          AND A.CODIGO_RENGLON_PADRE IN
+              (
+                  SELECT B.CODIGO_RENGLON_PADRE FROM SAF.ORDENES_CAMBIO_RENGLONES_ACTIVIDADES B WHERE B.ID = v_ID_RENGLON
+              )
+          AND A.ORDEN IN
+              (
+                  SELECT (TO_NUMBER(B.ORDEN) - 1) FROM SAF.ORDENES_CAMBIO_RENGLONES_ACTIVIDADES B WHERE B.ID = v_ID_RENGLON
+              );
+
+    V_CODIGO VARCHAR2(1024);
+    V_CODIGO_MODIFICAR VARCHAR2(1024);
+
+    V_CODIGO_RENGLON VARCHAR2(1024);
+BEGIN
+    IF V_TIPO_CODIGO = 1 THEN
+        FOR R_RENGLONES IN C_RENGLONES(V_CS_COTRATOID, v_ID_RENGLON, V_ORDEN_CAMBIO)
+            LOOP
+                OPEN C_CODIGO_RENGLON;
+                    FETCH C_CODIGO_RENGLON INTO V_CODIGO_RENGLON;
+                CLOSE C_CODIGO_RENGLON;
+
+                SELECT
+                    SAF.GET_GENERADOR_CODIGOS_RENGLONES_ORDENES_CAMBIO
+                    (
+                            V_CS_COTRATOID,
+                            V_CODIGO_RENGLON,
+                            (
+                                    CASE
+                                        WHEN R_RENGLONES.NIVEL > 1 THEN 2
+                                        ELSE 1
+                                    END
+                                ),
+                            1,
+                            V_ORDEN_CAMBIO
+                    )
+                INTO
+                    V_CODIGO
+                FROM DUAL;
+
+                SELECT
+                    CODIGO_RENGLON
+                INTO
+                    V_CODIGO_MODIFICAR
+                FROM SAF.ORDENES_CAMBIO_RENGLONES_ACTIVIDADES
+                WHERE ID = v_ID_RENGLON;
+
+                IF V_CODIGO IS NOT NULL THEN
+                    FOR R_TEMP IN C_UPDATE_CODIGOS_LIKE(V_CS_COTRATOID, V_CODIGO_MODIFICAR, V_ORDEN_CAMBIO)
+                        LOOP
+                            UPDATE SAF.ORDENES_CAMBIO_RENGLONES_ACTIVIDADES
+                            SET CODIGO_RENGLON = REPLACE(R_TEMP.CODIGO_RENGLON, V_CODIGO_MODIFICAR, V_CODIGO),
+                                ORDEN = TO_NUMBER(SUBSTR(REPLACE(R_TEMP.CODIGO_RENGLON, V_CODIGO_MODIFICAR, V_CODIGO), INSTR(REPLACE(R_TEMP.CODIGO_RENGLON, V_CODIGO_MODIFICAR, V_CODIGO), '.', -1) + 1))
+                            WHERE ID = R_TEMP.ID;
+                        END LOOP;
+
+                    FOR R_TEMP IN C_UPDATE_CODIGOS(V_CS_COTRATOID, V_CODIGO_MODIFICAR, V_ORDEN_CAMBIO)
+                        LOOP
+                            UPDATE SAF.ORDENES_CAMBIO_RENGLONES_ACTIVIDADES
+                            SET CODIGO_RENGLON = V_CODIGO,
+                                ORDEN = TO_NUMBER(SUBSTR(V_CODIGO, INSTR(V_CODIGO, '.', -1) + 1))
+                            WHERE ID = R_TEMP.ID;
+                        END LOOP;
+
+                    FOR R_TEMP IN C_UPDATE_PADRES_LIKE(V_CS_COTRATOID, V_CODIGO_MODIFICAR, V_ORDEN_CAMBIO)
+                        LOOP
+                            UPDATE SAF.ORDENES_CAMBIO_RENGLONES_ACTIVIDADES
+                            SET CODIGO_RENGLON_PADRE = REPLACE(R_TEMP.CODIGO_RENGLON_PADRE, V_CODIGO_MODIFICAR, V_CODIGO)
+                            WHERE ID = R_TEMP.ID;
+                        END LOOP;
+
+                    FOR R_TEMP IN C_UPDATE_PADRES(V_CS_COTRATOID, V_CODIGO_MODIFICAR, V_ORDEN_CAMBIO)
+                        LOOP
+                            UPDATE SAF.ORDENES_CAMBIO_RENGLONES_ACTIVIDADES
+                            SET CODIGO_RENGLON_PADRE = V_CODIGO
+                            WHERE ID = R_TEMP.ID;
+                        END LOOP;
+
+                    UPDATE SAF.ORDENES_CAMBIO_RENGLONES_ACTIVIDADES
+                    SET CODIGO_RENGLON_PADRE = R_RENGLONES.CODIGO_RENGLON
+                    WHERE ID = v_ID_RENGLON;
+                END IF;
+            END LOOP;
+    END IF;
+
+    SAF.RENGLONES_ACTIVIDADES_ORDENES_CAMBIO_SUMARIZACION(V_ORDEN_CAMBIO,V_CS_COTRATOID,NULL,NULL,NULL);
+END;

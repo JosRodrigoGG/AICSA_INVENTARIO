@@ -237,14 +237,14 @@ async function initGrid_Renglones(contratoID, treegrid_container, simbolo_moneda
 
     treeGrid.events.on('cellRightClick', function (row, column, e) {
         if (arguments.length != 0) {
-            apex.item('P85003_CODIGO_DB_T').setValue(JSON.stringify(arguments[0].codigo_db));
-            apex.item('P85003_TIPO_REGISTRO_T').setValue(JSON.stringify(arguments[0].tipo_dato));
-            apex.item('P85003_NIVEL_T').setValue(JSON.stringify(arguments[0].nivel));
-            apex.item('P85003_ORDEN_T').setValue(JSON.stringify(arguments[0].orden));
-            apex.item('P85003_MAX_NIVEL_T').setValue(JSON.stringify(arguments[0].max_nivel));
-            apex.item('P85003_MIN_NIVEL_T').setValue(JSON.stringify(arguments[0].min_nivel));
-            apex.item('P85003_CONTADOR_DERECHA_T').setValue(JSON.stringify(arguments[0].contador_derecha));
-            apex.item('P85003_TABLA_EDITAR').setValue(treegrid_container);
+            apex.item('P85002_CODIGO_DB_T').setValue(JSON.stringify(arguments[0].codigo_db));
+            apex.item('P85002_TIPO_REGISTRO_T').setValue(JSON.stringify(arguments[0].tipo_dato));
+            apex.item('P85002_NIVEL_T').setValue(JSON.stringify(arguments[0].nivel));
+            apex.item('P85002_ORDEN_T').setValue(JSON.stringify(arguments[0].orden));
+            apex.item('P85002_MAX_NIVEL_T').setValue(JSON.stringify(arguments[0].max_nivel));
+            apex.item('P85002_MIN_NIVEL_T').setValue(JSON.stringify(arguments[0].min_nivel));
+            apex.item('P85002_CONTADOR_DERECHA_T').setValue(JSON.stringify(arguments[0].contador_derecha));
+            apex.item('P85002_TABLA_EDITAR').setValue(treegrid_container);
 
             row_temp = row;
             column_temp = column;
@@ -254,10 +254,10 @@ async function initGrid_Renglones(contratoID, treegrid_container, simbolo_moneda
 
     treeGrid.events.on('cellClick', function (row, column, e) {
         if (arguments.length != 0) {
-            apex.item('P85003_CODIGO_DB_T').setValue(JSON.stringify(arguments[0].codigo_db));
-            apex.item('P85003_CODIGO_RENGLON_T').setValue(JSON.stringify(arguments[0].id));
-            apex.item('P85003_TIPO_REGISTRO_T').setValue(JSON.stringify(arguments[0].tipo_dato));
-            apex.item('P85003_TABLA_EDITAR').setValue(treegrid_container);
+            apex.item('P85002_CODIGO_DB_T').setValue(JSON.stringify(arguments[0].codigo_db));
+            apex.item('P85002_CODIGO_RENGLON_T').setValue(JSON.stringify(arguments[0].id));
+            apex.item('P85002_TIPO_REGISTRO_T').setValue(JSON.stringify(arguments[0].tipo_dato));
+            apex.item('P85002_TABLA_EDITAR').setValue(treegrid_container);
 
             row_temp = row;
             column_temp = column;
@@ -266,9 +266,9 @@ async function initGrid_Renglones(contratoID, treegrid_container, simbolo_moneda
     });
 
     treeGrid.events.on('footerCellRightClick', function () {
-        apex.item('P85003_CODIGO_DB_T').setValue('');
-        apex.item('P85003_TIPO_REGISTRO_T').setValue('');
-        apex.item('P85003_TABLA_EDITAR').setValue('');
+        apex.item('P85002_CODIGO_DB_T').setValue('');
+        apex.item('P85002_TIPO_REGISTRO_T').setValue('');
+        apex.item('P85002_TABLA_EDITAR').setValue('');
     });
 
     style = document.createElement('style');
@@ -304,4 +304,21 @@ async function initGrid_Renglones(contratoID, treegrid_container, simbolo_moneda
             },
         ]
     });*/
+}
+
+function cambiarLeftSplit(nuevoValor) {
+    // Verifica si la instancia de treeGrid existe
+    if (treeGrid) {
+        // Actualiza la propiedad leftSplit con el nuevo valor
+        treeGrid.config.leftSplit = nuevoValor;
+
+        // Intenta utilizar treeGrid.render() o treeGrid.paint()
+        if (treeGrid.paint) {
+            treeGrid.paint();
+        } else if (treeGrid.render) {
+            treeGrid.render();
+        } else {
+            console.error("No se pudo encontrar un método para renderizar la grid.");
+        }
+    }
 }
