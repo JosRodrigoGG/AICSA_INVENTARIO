@@ -1,0 +1,93 @@
+CREATE OR REPLACE FUNCTION SAF.GET_INDICADOR_GERENCIAL_PERIODO_DE_COBRO
+(
+    V_EMPRESA VARCHAR2,
+    V_FECHA_INICIO DATE,
+    V_FECHA_FIN DATE
+)
+RETURN NUMBER AS
+    CURSOR C_MESES_EVALUAR IS
+        SELECT
+            TRUNC
+            (
+                MONTHS_BETWEEN
+                (
+                        V_FECHA_FIN,
+                        V_FECHA_INICIO
+                )
+            ) + 1
+        FROM DUAL;
+
+    CURSOR C_FECHAS(P_LEVEL NUMBER) IS
+        SELECT
+            LEVEL - 1 AS MES,
+            (
+                CASE
+                    WHEN LEVEL = 1 THEN
+                        TRUNC(V_FECHA_INICIO)
+                    ELSE
+                        TRUNC(ADD_MONTHS(TRUNC(V_FECHA_INICIO), LEVEL - 1), 'MM')
+                    END
+                ) FECHA_INICIAL,
+            (
+                CASE
+                    WHEN LEVEL = 2 THEN
+                        TRUNC(V_FECHA_FIN)
+                    ELSE
+                        LAST_DAY(TRUNC(ADD_MONTHS(TRUNC(V_FECHA_INICIO), LEVEL - 1), 'MM'))
+                    END
+                ) FECHA_FINAL
+        FROM DUAL
+        CONNECT BY LEVEL = P_LEVEL;
+
+    CURSOR C_VENTAS (P_FECHA_INICIO DATE, P_FECHA_FIN DATE) IS
+        SELECT
+            SUM(GET_CARDINALIDAD_CUENTA_CONTABLE(A.COD_CTA,A.VALOR,A.DB_HB,2020)) AS SALDO
+        FROM SAF.CON_POLDETXHEAD A
+        INNER JOIN SAF.CON_INDICADORES_FORMULAS B
+        ON A.COD_CTA = B.COD_CTA
+        AND A.CODIGO_GASTO = B.CODIGO_GASTO
+        WHERE A.CODIGO_EMPRESA IN
+        (
+            SELECT
+                REGEXP_SUBSTR(V_EMPRESA, '[^\|]+', 1, level) AS CODIGO_EMPRESA
+            FROM
+                dual CONNECT BY REGEXP_SUBSTR(V_EMPRESA, '[^\|]+', 1, level) IS NOT NULL
+        )
+        AND B.ID_INDICADOR = 9
+        AND B.FUNCION = '/'
+        AND TRUNC(A.FPOL) BETWEEN TRUNC(P_FECHA_INICIO) AND TRUNC(P_FECHA_FIN);
+
+    P_SALDO NUMBER := 0;
+    P_SALDO_INICIAL NUMBER;
+    P_SALDO_FINAL NUMBER;
+    P_SALDO_VENTA NUMBER;
+    P_LEVEL NUMBER := 0;
+
+    P_CONTADOR NUMBER := 0;
+BEGIN
+    OPEN C_MESES_EVALUAR;
+        FETCH C_MESES_EVALUAR INTO P_LEVEL;
+    CLOSE C_MESES_EVALUAR;
+
+    FOR R_FECHAS IN C_FECHAS(P_LEVEL)
+    LOOP
+        P_SALDO_INICIAL := NVL(
+                SAF.APX_FNC_POLIZAS_SUMA_SALDO_INICIAL(V_EMPRESA,NULL, TO_CHAR(R_FECHAS.FECHA_INICIAL, 'DD/MM/YYYY'), 9), 0);
+        P_SALDO_FINAL := NVL(
+                SAF.APX_FNC_POLIZAS_SUMA_SALDO_FINAL(V_EMPRESA, NULL, TO_CHAR(R_FECHAS.FECHA_FINAL, 'DD/MM/YYYY'), 9), 0);
+
+        OPEN C_VENTAS(R_FECHAS.FECHA_INICIAL, R_FECHAS.FECHA_FINAL);
+            FETCH C_VENTAS INTO P_SALDO_VENTA;
+        CLOSE C_VENTAS;
+
+        IF P_SALDO_VENTA = 0 THEN
+            P_SALDO := P_SALDO + 0;
+        ELSE
+            P_SALDO := P_SALDO + (((P_SALDO_INICIAL + P_SALDO_FINAL) / 2) / ((P_SALDO_VENTA * -1) * 1.12));
+        END IF;
+
+        P_CONTADOR := P_CONTADOR + 1;
+    END LOOP;
+
+    RETURN CASE WHEN P_CONTADOR != 0 THEN P_SALDO / P_CONTADOR ELSE 0 END;
+END GET_INDICADOR_GERENCIAL_PERIODO_DE_COBRO;

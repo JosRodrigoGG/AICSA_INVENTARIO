@@ -118,10 +118,20 @@ function cargarRowColumn() {
     }
 }
 
+function obtenerNombreDia(fecha) {
+    var dias = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+    var dia = fecha.getDay();
+    return dias[dia];
+}
+
 async function initGrid_HT(treegrid_container, semanas, id_hoja_tiempo, fecha) {
-    let respuesta;
+    let respuestaT;
     let unidadMedida;
     let configColumn;
+
+    const heigthRegion = $(window).height() - 275;
+    const widthRegion = $(window).width() - 96;
+
     const numero_dias = (semana) => {
        if (semana == 1) {
            return 7;
@@ -134,7 +144,7 @@ async function initGrid_HT(treegrid_container, semanas, id_hoja_tiempo, fecha) {
         treeGrid.destructor();
     }
 
-    respuesta = await cargarDatos(id_hoja_tiempo, fecha, semanas);
+    respuestaT = await cargarDatos(id_hoja_tiempo, fecha, semanas);
     //unidadMedida = await cargarUnidadMedida();
 
     configColumn =
@@ -218,7 +228,7 @@ async function initGrid_HT(treegrid_container, semanas, id_hoja_tiempo, fecha) {
     treeGrid = new dhx.TreeGrid(treegrid_container,
         {
             columns: configColumn,
-            data: respuesta,
+            data: respuestaT,
             htmlEnable: true,
             autoWidth: true,
             keyNavigation: true,
@@ -230,7 +240,11 @@ async function initGrid_HT(treegrid_container, semanas, id_hoja_tiempo, fecha) {
             rowHeight: 35,
             footerRowHeight: 35,
             headerRowHeight: 35,
+            autoHeight: false,
+            footerAutoHeight: true,
             css: "style_table",
+            height: heigthRegion,
+            width: widthRegion,
             rowCss: function (row) {
                 return row.tipo === 'CS' ? 'style_row_cs' : row.tipo === 'TA' ? 'style_row_ta' : '';
             }
@@ -254,11 +268,6 @@ async function initGrid_HT(treegrid_container, semanas, id_hoja_tiempo, fecha) {
         y_temp = treeGrid.getScrollState().y ? treeGrid.getScrollState().y : 0;
         x_temp = treeGrid.getScrollState().x ? treeGrid.getScrollState().x : 0;
     })
-
-    /*treeGrid.events.on('scroll', function () {
-        y_temp = treeGrid.getScrollState().y;
-        x_temp = treeGrid.getScrollState().x;
-    });*/
 
     treeGrid.data.sort({
         by: 'orden',
