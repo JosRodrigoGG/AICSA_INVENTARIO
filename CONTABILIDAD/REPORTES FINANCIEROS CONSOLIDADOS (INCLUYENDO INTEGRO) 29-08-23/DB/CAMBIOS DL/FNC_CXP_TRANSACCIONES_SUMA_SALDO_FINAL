@@ -1,0 +1,65 @@
+create or replace FUNCTION     FNC_CXP_TRANSACCIONES_SUMA_SALDO_FINAL
+(
+	V_EMPRESAS VARCHAR2,
+--	V_UNIDADES VARCHAR2,
+	V_FECHA_FINAL VARCHAR2,
+    V_INTERCOMPANY VARCHAR2 DEFAULT NULL
+)
+RETURN NUMBER IS
+    CURSOR C_SALDO_INICIO IS
+        SELECT
+            SUM(A.CARGO_LOCAL)
+        FROM CXP_TRANSACCIONES A, CXP_ENC_OC B
+        WHERE A.CODIGO_EMPRESA = B.CODIGO_EMPRESA
+        AND A.CODIGO_PROVEEDOR = B.CODIGO_PROVEEDOR
+        AND A.NUMERO_OC = B.NUMERO_OC
+        AND A.NO_CONTRASENA IS NOT NULL AND A.NO_CONTRASENA > 0
+         AND A.FECHA_TRANSACCION BETWEEN TO_DATE('01/01/2020', 'DD/MM/YYYY') and TO_DATE(V_FECHA_FINAL, 'DD/MM/YYYY')
+        AND A.CODIGO_EMPRESA IN
+        (
+            SELECT
+				REPLACE(REPLACE(REGEXP_SUBSTR(V_EMPRESAS, '[^\|]+', 1, level), '[',''), ']', '') AS CODIGO
+			FROM
+				dual CONNECT BY REGEXP_SUBSTR(V_EMPRESAS, '[^\|]+', 1, level) IS NOT NULL
+        )
+       /* AND A.CODIGO_DIVISION IN
+        (
+            SELECT
+				REPLACE(REPLACE(REGEXP_SUBSTR(V_UNIDADES, '[^\|]+', 1, level), '[',''), ']', '') AS CODIGO
+			FROM
+				dual CONNECT BY REGEXP_SUBSTR(V_UNIDADES, '[^\|]+', 1, level) IS NOT NULL
+        )*/
+        AND A.CODIGO_PROVEEDOR IN
+        (
+            SELECT
+                DISTINCT CODIGO_PROVEEDOR
+            FROM
+            (
+                SELECT
+                    CODIGO_PROVEEDOR,
+                    (
+                        CASE
+                            WHEN NVL(V_INTERCOMPANY,'N') = 'N' THEN
+                                CASE
+                                    WHEN NVL(INTERCOMPANY, 'N') = 'N' THEN
+                                        'N'
+                                    ELSE
+                                        NULL
+                                END
+                            ELSE
+                                'N'
+                        END
+                    ) ESTADO
+                FROM SAF.CXP_PROVEEDORES
+            )
+            WHERE ESTADO IS NOT NULL
+        );
+
+	V_SALDO NUMBER;
+BEGIN
+    OPEN C_SALDO_INICIO;
+		FETCH C_SALDO_INICIO INTO V_SALDO;
+	CLOSE C_SALDO_INICIO;
+
+    RETURN V_SALDO;
+END;
