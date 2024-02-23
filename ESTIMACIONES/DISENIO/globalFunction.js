@@ -17,16 +17,35 @@ function i_cambiarElemento(idRegion, texto, tipoRepote){
         let elemento;
 
         if(tipoRepote=='CR'){
-            elemento=$(`#${idRegion} .t-Report-paginationText`);
+            elemento = $(`#${idRegion} .t-Report-paginationText`);
         }else{
-            elemento=$(`#${idRegion}_data_panel .a-IRR-pagination-label`)
+            elemento = $(`#${idRegion}_data_panel .a-IRR-pagination-label`)
         }
         let result=elemento.html().substring(elemento.html().indexOf("-")+1)+` ${texto}`;
+
         elemento.html(result);
     }catch{
         console.log('¡ERR!');
     }
 }
+
+function g_MostrarNumeroRegistrosIR_texto(idRegion, texto) {
+    try{
+        let elemento = $(`#${idRegion}_data_panel .a-IRR-pagination-label`);
+
+        let result =
+            `
+                <span id="${idRegion}_contador" class="a-IRR-pagination-label">${elemento.html().substring(elemento.html().indexOf("-")+1)} Registros</span>
+                <br>
+                <span id="${idRegion}_texto" class="a-IRR-pagination-label">${texto}</span>
+            `;
+
+        elemento.html(result);
+    }catch{
+        console.log('¡ERR!');
+    }
+}
+
 function g_MostrarRegistrosDirectos(idRegion, texto){
     try{
         let elemento=$(`#${idRegion}_data_panel .a-IRR-pagination-label`)
@@ -305,41 +324,42 @@ function heigthFosContent() {
 function heigthAppPageFos(app, page) {
     const heightAdjustments = {
         238: {
-            default: 135,
-            155: 151,
-            82001: 115
+            default: 125,
+            155: 131,
+            82001: 95,
+            400: 80
         },
         227: {
-            2: 138
+            2: 118
         },
         230: {
-            266: 140,
-            82000: 135
+            266: 120,
+            82000: 115
         },
         202: {
-            21: 144
+            21: 124
         },
         220: {
-            default: 135,
-            300: 100
+            default: 115,
+            300: 80
         },
         103: {
-            default: 135
+            default: 115
         },
         205: {
-            26: 135
+            26: 115
         },
         218: {
-            16: 135
+            16: 115
         },
         244: {
-            116: 135
+            116: 115
         },
         240: {
-            2: 140
+            2: 120
         },
         248: {
-            1: 135
+            1: 115
         }
     };
 
@@ -365,7 +385,8 @@ function heigthAppPage(id, app, page) {
         238: {
             default: 240,
             155: 270,
-            600: 317
+            600: 317,
+            400: 260
         },
         227: {
             2: 240
@@ -419,10 +440,11 @@ function heigthAppPage(id, app, page) {
     }
 }
 
+//Tamanio lateral derecho
 function heigthFosContentAppPage(app, page) {
     const heightAdjustments = {
         238: {
-            default: 205,
+            default: 200,
             266: 215,
             300: 215
         },
@@ -472,6 +494,17 @@ function heigthFosContentAppPage(app, page) {
 
         const height = $(window).height() - heightAdjustment;
         $(".t-TabsRegionN2 .t-TabsRegion-itemsN2 .a-Tabs-panel").css("height", height);
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+//Quitar fos de interactive report en renglon principal contenido en split para
+//tener opcion de 2 lineas de registros
+function deleteContentFosIR(idRegion, idFOS) {
+    try {
+        const height = $(window).height() - heightAdjustment;
+        $(`#${idRegion}_splitter > #${idRegion}_splitter_first > div > #${idFOS} > .container`).css("display", "none");
     } catch (e) {
         console.error(e);
     }

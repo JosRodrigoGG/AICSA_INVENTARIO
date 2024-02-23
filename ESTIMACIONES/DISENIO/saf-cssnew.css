@@ -1,0 +1,1356 @@
+@font-face {
+    font-family: 'AicsaSegiosb';
+    src: url('Segoe_UI.ttf');
+}
+@font-face {
+    font-family: 'AicsaSegoeBold';
+    src: url('Segoe_UI_Bold.ttf');
+}
+@font-face {
+    font-family: 'AicsaSegoe';
+    src: url('Segoe_UI.ttf');
+}
+:root
+{
+    --colorFondo: white;
+    --colorSideBar: #585757;
+    --selectedSideBar: #494949; /* color anterior #7f7f7f */
+    --colorNavBar: #bbbbbb;
+
+    --fontText: "AicsaSegoe";
+
+    --fontTextTitleSB:  "AicsaSegoeBold";
+    --fontTextTitleBold: "AicsaSegiosb";
+
+    --colorTextoTabs: #000000;
+    --colorFondo1:#FFFFFF;
+    --colorFondo2: #ededed;
+
+    --colorLineTabs: rgb(43 115 210);
+
+    --colorSelectedItem: rgb(213, 227, 246);
+    --colorHoverItem: rgb(241 247 255);
+
+    --colorBorderDataGrid: #bbbbbb;
+
+    --colorLineaTabsPN: #bbbbbb;
+    --colorLineaTabsN: #494949;
+
+    --fontSizeTextos1: 16px;
+    --fontSizeTextos2: 14px;
+    --fontSizeTextos3: 13px;
+    --fontSizeTextos4: 12px;
+}
+
+
+/* CLASE BOTTON MONEDA CON ITEM */
+.btnIzquierdoItemsMoneda {
+    background-color:#f7f7f7;
+    border-bottom: 1px solid rgba(22,21,19,0.5);
+    font-family: var(--fontText);
+    font-style: normal;
+    font-size: 12px;
+    padding: 0px;
+    /* height: 29px !important;  */
+    font-weight: 400;
+    cursor: unset;
+    pointer-events: none;
+}
+
+body{
+    font-family: 'AicsaSegoe'!important;
+    /*src: url('Segoe_UI.ttf');*/
+
+}
+
+/* scroll lateral derecho split */
+#splitter-action_splitter_second
+{
+    background-color: var(--colorFondo2);
+    /* overflow: overlay !important;*/
+}
+
+/* color boton splitter */
+.a-Splitter-barH.is-focused button:hover, .a-Splitter-barV.is-focused button:hover
+{
+    background-color: transparent !important;
+}
+.a-Splitter-thumb
+{
+    background-color: transparent !important;
+}
+
+/* Tipo de letra y tama;o titulo 2*/
+.name_app > .t-Region-bodyWrap > .t-Region-body
+{
+    font-family: var(--fontTextTitleSB);
+    font-size: var(--fontSizeTextos1);
+    padding: 5px 5px 5px 5px;
+    background-color: var(--colorFondo1);
+}
+.name_app
+{
+    margin-bottom: 2px;
+}
+/* tipo de texto paginacion */
+.a-IRR-pagination-label
+{
+    font-family: var(--fontText);
+    font-size: var(--fontSizeTextos2);
+}
+/* Cambio tipo de letra pesta;a PRINCIPAL general*/
+.t-TabsRegionPN2 > .t-TabsRegion-items > .t-Tabs > .t-Tabs-item
+{
+    font-family: var(--fontTextTitleSB);
+    font-size: var(--fontSizeTextos3);
+    color: black;
+}
+/* Estolos de cada pesta;a PRINCIPAL*/
+.t-TabsRegionPN2 > .t-TabsRegion-items > .t-Tabs
+{
+    border-color: var(--colorLineaTabsPN) !important;
+    border-bottom: 1px;
+    border-style: inset;
+    overflow: hidden !important;
+    background-color: var(--colorFondo1);
+}
+/* estilo cuando una pesta;a PRINCIPAL es selecioanda */
+.t-TabsRegion-itemsPN2 > .t-Tabs--simple .is-active .t-Tabs-link
+{
+    color: var(--colorTextoTabs);
+    box-shadow: 0 -0.15rem 0 var(--colorLineTabs) inset !important;
+    outline: none !important;
+}
+.t-TabsRegion-itemsPN2 > .t-Tabs > .t-Tabs-item a
+{
+    padding: 10px 15px 10px 15px !important;
+}
+/* Cambio tipo de letra pesta;a general*/
+.t-TabsRegionN2 > .t-TabsRegion-items > .t-Tabs > .t-Tabs-item, .t-TabsRegionN3 > .t-TabsRegion-items > .t-Tabs > .t-Tabs-item
+{
+    font-family: var(--fontTextTitleSB);
+    font-size: var(--fontSizeTextos3);
+    color: black;
+}
+/* Estilos de cada pesta;a */
+.t-TabsRegionN2 > .t-TabsRegion-items > .t-Tabs, .t-TabsRegionN3 > .t-TabsRegion-items > .t-Tabs
+{
+    border-color: var(--colorLineaTabsPN) !important;
+    border-bottom: 1px;
+    border-style: inset;
+    height: 29px !important;
+    overflow: hidden !important;
+    background-color: var(--colorFondo2);
+    width: 95%;
+    margin: auto;
+
+}
+/* define el alto de las pesta;as*/
+.t-TabsRegionN2 > .t-TabsRegion-items ul, .t-TabsRegionN3 > .t-TabsRegion-items ul
+{
+    height: 40px;
+}
+.t-TabsRegionN2, .t-TabsRegionN3
+{
+    margin-right: 14px;
+}
+/* estilo cuando una pesta;a es selecioanda */
+.t-TabsRegion-itemsN2 > .t-Tabs--simple .is-active .t-Tabs-link, .t-TabsRegion-itemsN3 > .t-Tabs--simple .is-active .t-Tabs-link
+{
+    color: var(--colorTextoTabs) !important;
+    box-shadow: 0 -0.15rem 0 var(--colorLineTabs) inset !important;
+    outline: none !important;
+}
+/* define el pading de los a en los tabs */
+.t-TabsRegion-itemsN2 > .t-Tabs > .t-Tabs-item a, .t-TabsRegion-itemsN3 > .t-Tabs > .t-Tabs-item a
+{
+    padding: 6px 15px 6px 15px !important;
+}
+/* Color navBar barra superior*/
+.t-Header-branding
+{
+    background-color: var(--colorNavBar);
+    box-shadow: none;
+}
+/**/
+.t-TreeNav
+{
+    background-color: var(--colorSideBar);
+}
+/*.apex-logo-text
+{
+    color: black;
+    font-family: var(--fontText);
+    font-weight: bold;
+    font-size: 18px;
+}*/
+.t-Body-mainContent
+{
+    background-color: var(--colorFondo1);
+}
+/* Color encabezado Interactive Grid  */
+.t-IRR-regionN2 > .a-IRR-container > .a-IRR > .a-IRR-fullView > .a-IRR-toolbar
+{
+    background-color: var(--colorFondo1);
+    border-radius: 0px !important;
+    border: none;   /* quita border del dataGrid ToolBar*/
+    min-width: 200px;
+}
+.t-IRR-region{
+    background-color: white!important;
+}
+/* para que no se sobre pongan los iconos del interactive report */
+/* Se quito por problemas con botones en vista de Sergio
+.t-IRR-regionN2 > .a-IRR-container > .a-IRR > .a-IRR-fullView > .a-IRR-toolbar > .a-IRR-controls
+{
+    min-width: 40rem;
+}*/
+/* Hover buttons Interactive Grid */
+.t-IRR-regionN2 > .a-IRR-container > .a-IRR > .a-IRR-fullView > .a-IRR-toolbar > .a-IRR-controls > .a-IRR-controlGroup
+> .a-IRR-viewsContainer > .a-IRR-views > .a-Button.is-active
+{
+    color: var(--selectedSideBar);
+}
+/* Quita border a los botones */
+.t-IRR-regionN2 > .a-IRR-container > .a-IRR > .a-IRR-fullView > .a-IRR-toolbar > .a-IRR-controls > .a-IRR-controlGroup
+> .a-IRR-viewsContainer > .a-IRR-views > .a-Button
+{
+    border-radius: 0px !important;
+    margin-left: 5px;
+}
+/* Botones sin Bordes y tama;o definido en 30px */
+.a-Button, .t-Button
+{
+    border-radius: 0px !important;
+    height: 30px;
+}
+/*.a-Button:hover, t-Button:hover
+{
+    color: #ff0000 !important;
+}*/
+/* centra span de botones hechos de forma manual */
+.t-Button
+{
+    display: flex;
+}
+/* Texto en botones */
+.t-Button-label
+{
+    font-family: var(--fontText);
+    font-size: var(--fontSizeTextos4);
+    font-weight: normal;
+}
+/* input search Interactive Grid */
+.t-IRR-regionN2 > .a-IRR-container > .a-IRR > .a-IRR-fullView > .a-IRR-toolbar > .a-IRR-controls > .a-IRR-controlGroup
+> .a-IRR-search > .a-IRR-searchFieldContainer input
+{
+    /*background-color: #ededed;*/
+    padding-top: 0px;
+    padding-bottom: 0px;
+    font-family: var(--fontText);
+    font-size: var(--fontSizeTextos4);
+    border-radius: 0px !important;
+}
+/* Evitar que bajen los componentes */
+.t-IRR-regionN2 > .a-IRR-container > .a-IRR > .a-IRR-fullView > .a-IRR-toolbar > .a-IRR-controls, .t-IRR-regionN2 > .a-IRR-container > .a-IRR > .a-IRR-fullView > .a-IRR-toolbar > .a-IRR-buttons, .t-IRR-regionN2 > .a-IRR-container > .a-IRR > .a-IRR-fullView > .a-IRR-toolbar
+{
+    display: flex;
+    white-space: nowrap;
+    flex-wrap: nowrap;
+
+}
+/* Color iconos botones Interactive Grid */
+.t-IRR-regionN2 > .a-IRR-container > .a-IRR > .a-IRR-fullView > .a-IRR-toolbar > .a-IRR-buttons > .t-Button > .t-Icon
+{
+    color:black;
+}
+/* cambio en el TH de la tabla */
+.t-IRR-regionN2 > .a-IRR-container > .a-IRR > .a-IRR-fullView > .a-IRR-content > .a-IRR-reportView th a
+{
+    /* background-color: red; */
+    padding-top: 0px;
+    padding-bottom: 0px;
+    font-family: var(--fontTextTitleSB);
+    font-size: var(--fontSizeTextos4);
+    min-height: 15px;
+    height: 25px;
+    white-space: nowrap;
+    color: black;
+
+    /* border: 0px solid;  */
+}
+/* quitando styles que afectaban el del data Grid */
+.t-IRR-regionN2 > .a-IRR-container > .a-IRR > .a-IRR-fullView > .a-IRR-content > .a-IRR-reportView > .a-IRR-tableContainer > .t-fht-wrapper > .t-fht-thead table
+{
+    border-style: none;
+}
+/* Borde Encabezado */
+.t-IRR-regionN2 > .a-IRR-container > .a-IRR > .a-IRR-fullView > .a-IRR-content > .a-IRR-reportView th
+{
+    border-right: none;
+    border-left: none;
+    border-top: none;
+    height: 24px !important;
+    border-bottom: 1px solid !important;
+    border-color: #747373 !important;
+}
+/* Reduce el alcho del header */
+.t-IRR-regionN2 > .a-IRR-container > .a-IRR > .a-IRR-fullView > .a-IRR-content > .a-IRR-reportView th span
+{
+    padding-top: 5px;
+    padding-bottom: 0px;
+    height: 30px;
+    min-height: 20px;
+}
+/* Borde footer*/
+.t-IRR-regionN2 > .a-IRR-container > .a-IRR > .a-IRR-fullView > .a-IRR-content  > .a-IRR-reportView > .a-IRR-paginationWrap
+{
+    border-top: 1px solid !important;
+    border-color: var(--colorBorderDataGrid) !important;
+}
+/* cambio en el td de la tabla */
+.t-IRR-regionN2 > .a-IRR-container > .a-IRR > .a-IRR-fullView > .a-IRR-content > .a-IRR-reportView td
+{
+    padding-top: 2px;
+    padding-bottom: 2px;
+    font-family: var(--fontText);
+    font-size: var(--fontSizeTextos4);
+    border-right: 1px solid;
+    border-color: #e7e7e7 !important;
+    height: 24px;
+    white-space: nowrap;
+}
+/* Fondo Imagen */
+.has-username > .t-Button >  .t-Button-badge
+{
+    background-color: #bbbbbb;
+}
+/*ocultamos los iconos*/
+.has-username > .t-Button--navBar .a-Icon.icon-down-arrow
+{
+    display: none!important;
+}
+/*mostramos solo el de la derecha*/
+.has-username > .t-Button--navBar .t-Icon.a-Icon.icon-down-arrow
+{
+    display:flex!important;
+}
+/* Iconos en la barra superior */
+.t-NavigationBar-item
+{
+    display: flex;
+    align-content: center;
+    justify-content: center;
+}
+/* CSS NUEVA PLANTILLA */
+.a-TreeView-node > .is-selected
+{
+    background-color: var(--selectedSideBar) !important;
+}
+.a-TreeView-node > .is-hover
+{
+    background-color: var(--selectedSideBar) !important;
+}
+/* Clase utilizada en el icono de la vista tipo Carpetas de GDC */
+.backColorCards
+{
+    background-color: white;
+}
+/* Clase utilizada en la vista tipo Carpetas GDC
+para posicionar el icono de bloqueo en la parte inferior del texto*/
+.iconLock
+{
+    position: absolute !important;
+    margin-top: 35px;
+}
+/* Clase que se le agrega a un input en Advanced > CSS Classess
+   para centrar el mensaje y volverlo de color rojo  GDC*/
+.changeColorRed
+{
+    color:red;
+    text-align: center;
+}
+/* clases de tarjetas vista carepetas GDC */
+.t-Card-titleWrap
+{
+    font-family: var(--fontText);
+    font-size: var(--fontSizeTextos4);
+}
+/* clases en iconos vista tarjetas GDC*/
+.coloricon
+{
+    color: #F4BC1C !important;
+}
+.sizeicon
+{
+    font-size: 30px !important;
+}
+/* Clase Breadcrumb en GDC add in Layout> Column CSS Classes */
+.manual_breadcrumb ul.a-ListView {
+    padding: 10px 16px;
+    list-style: none;
+    background-color: var(--colorFondo);
+}
+.manual_breadcrumb ul.a-ListView li {
+    display: inline;
+    font-family: var(--fontTextTitleSB);
+    font-size: var(--fontSizeTextos1);
+    padding: 2px;
+    color: black;
+    content: "/\00a0";
+}
+.manual_breadcrumb ul.a-ListView li:hover {
+    cursor: pointer;
+}
+/* Clase tree GDC*/
+.a-TreeView-label
+{
+    font-family: var(--fontText);
+    font-size: var(--fontSizeTextos4);
+}
+/* Oculta los filtros de Interactive Report */
+.a-MediaBlock.a-IRR-controlsContainer.a-Collapsible.is-collapsed
+{
+    display: none !important;
+}
+.a-MediaBlock.a-IRR-controlsContainer.a-Collapsible.is-expanded
+{
+    display: none !important;
+}
+/* Agregar clase manual_breadcrumb en Appearance > CSS Classes del static content
+   para que herede los estilos de los nuevos titulos */
+.manual_breadcrumb
+{
+    font-family: var(--fontTextTitleSB);
+    font-size: var(--fontSizeTextos1);
+    font-style:normal;
+    background-color:#ffffff;
+}
+/* Cambia el cursor (Mouse) de los nuevos titulos al pasar sobre el texto  */
+.manual_breadcrumb:hover
+{
+    cursor: pointer;
+}
+/* Clase que poseen los input de ingreso de data */
+.apex-item-text
+{
+    font-family: var(--fontText);
+    font-size: var(--fontSizeTextos4);
+    font-style:normal;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    border-radius: 0px
+}
+.a-PopupLOV-results .a-IconList-item
+{
+    font-family: var(--fontText);
+    font-size: var(--fontSizeTextos4);
+    padding: 1px 4px 1px 4px;
+}
+/* Clase que poseen el div que contiene los input  */
+.t-Form-inputContainer
+{
+    padding: 0px 8px 0px 8px;
+}
+/* Clase que se agrega al dar click (javascript) sobre un Interactive Report
+   y le cambia de color al dato seleccionado */
+.selected
+{
+    background-color: var(--colorSelectedItem) !important;
+    color: black !important;
+}
+/* hover to table */
+.t-IRR-regionN2 tr:hover td
+{
+    background: var(--colorHoverItem) !important;
+    /* background-color: red !important;*/
+}
+/* Clase que poseen los div que contienen los Label de los input  */
+.t-Form-labelContainer
+{
+    padding-top: 0px;
+    padding-bottom: 0px;
+}
+/* Clase que poseen los Label de los input  */
+.t-Form-label
+{
+    font-family: var(--fontText);
+    font-size: var(--fontSizeTextos4);
+    padding-bottom: 2px;
+    padding: 8px 0px 1px 0px;
+}
+/* Clase que poseen los input de tipo Text Area  */
+.apex-item-textarea {
+    font-family: var(--fontText);
+    font-size: var(--fontSizeTextos4);
+    /* border-top: none;
+     border-left: none;
+     border-right: none;*/
+    border-radius: 0px;
+    padding: 0px !important;
+}
+/* Clase que posee los Titulos de los static content de tipo Collapsible  */
+.t-Region-title
+{
+    font-size: var(--fontSizeTextos3);
+    font-family: var(--fontTextTitleSB);
+}
+/* quita el borde del encabezado Collapsible */
+.t-Region-header
+{
+    border: none;
+}
+/* Clase del div que contiene los Titulos de los static content de tipo Collapsible  */
+.t-Region-header
+{
+    line-height: 0px !important;
+}
+.t-Region-titleButton
+{
+    outline:none;
+}
+/* Clase que se agrega en Layout > Clumn CSS Classess
+    para poderlo alinear a la derecha de un contenedor*/
+.rightalig
+{
+    display: flex;
+    justify-content: flex-end;
+}
+/* Clase que se agrego en el buscador de GDC Layout > Column CSS Classess
+   para subir el contenedor a la altura de los botones	 */
+.margintop_search
+{
+    margin-top: -6px;
+}
+/* reducir el tama;o de los select */
+.apex-item-select, .apex-item-text, .apex-item-textarea, .u-TF-item--text, .apex-item-multi
+{
+    min-height: 0;
+    padding: 6px 4px 2px 4px;
+}
+/* Clase de los popup Lov define la altura*/
+.apex-item-popup-lov
+{
+    height: 23px !important;
+}
+/* Clase cambio de tipo de letra popupLov*/
+.apex-item-text.apex-item-popup-lov
+{
+    font-family: var(--fontText);
+    font-size: var(--fontSizeTextos4);
+
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    border-radius: 0px;
+    padding: 1px 4px 1px 4px;
+}
+.a-Button--popupLOV
+{
+    background-color: white;
+}
+.a-PopupLOV-search.apex-item-text, .apex-item-text.a-PopupLOV-search.apex-item-text
+{
+    padding-top: 0px;
+    padding-bottom: 0px;
+    font-family: var(--fontText);
+    font-size: var(--fontSizeTextos4);
+    padding: 1px 4px 1px 4px;
+}
+/* Clase de los Picker altura y tipo de letra */
+.apex-item-wrapper--date-picker-jet .oj-text-field-container:not(.oj-text-field-has-start-slot) .oj-text-field-input
+{
+    height: 22px!important;
+    font-family: var(--fontText);
+    font-size: var(--fontSizeTextos4);
+}
+/* Cambia de color los input ReadOnly  ESTE CAMBIARA POR LA LINEA ROJA */
+input[readonly], textarea[readonly]
+{
+    background-color: #f7f7f7;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    border-radius: 0px
+}
+/* Clases de los checkbox */
+.apex-item-checkbox input+label, .apex-item-radio input+label, .apex-item-single-checkbox input+label, label.u-checkbox, label.u-radio
+{
+    font-family: var(--fontText);
+    font-size: var(--fontSizeTextos4);
+}
+.aligButton
+{
+    position: absolute;
+    top: -3%;
+    left: 90%;
+}
+.apex-item-display-only
+{
+    /*font-weight: normal !important;*/
+    font-family: var(--fontText);
+    font-size: var(--fontSizeTextos4);
+}
+/*          CSS DE LOS ANTIGUOS COMENTARIOS      */
+/* CSS vista Comentarios */
+.containerChat {
+    border: 2px solid #dedede;
+    background-color: var(--colorFondo);
+    border-radius: 5px;
+    padding: 10px;
+    margin: 0px 0;
+    width: 90%;
+}
+.darker {
+    border-color: #ccc;
+    background-color: #ddd;
+}
+.containerChat::after {
+    content: "";
+    clear: both;
+    display: table;
+}
+.time-right {
+    float: right;
+    color: #aaa;
+}
+
+.time-left {
+    float: left;
+    color: #999;
+}
+.badgeUser
+{
+    display: table-caption;
+    background-color: #1a2f3f;
+    color: white;
+    border-radius: 5px;
+    padding: 10px;
+    margin: 10px 0;
+    margin-right: 10px;
+    font-size: 17px; /* 50% of parent */
+    font-weight: bold;
+    text-align: center;
+    height: 100%;
+}
+#comentarios ul.a-ListView
+{
+    height: 27em;
+    overflow-x: hidden;
+    /* overflow-y: scroll; */
+}
+/*.containerChat p, span
+{
+    font-family: var(--fontText);
+    font-size:12px;
+    font-style:normal;
+}*/
+.containerChat p
+{
+    margin-bottom: 0px;
+}
+.containerRow
+{
+    width: 100%;
+    display: flex;
+    flex-wrap: nowrap;
+}
+
+.select, .selectlist, .apex-item-select {
+
+    font-family: var(--fontText);
+    font-size: var(--fontSizeTextos4);
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    border-radius: 0px;
+    padding: 6px 4px 2px 4px;
+}
+
+/*   TERMINA CSS ANTIGUOS COMENTARIOS */
+
+/* Breadcrumb con etiquetas a y href */
+.breadcrumbstatic .a-ListView-item .ui-btn{
+    display: inline !important;
+    padding: 0;
+}
+
+
+.breadcrumbstatic .a-ListView-item .ui-btn span{
+    visibility: hidden;
+}
+
+.breadcrumbstatic .a-ListView-item.has-link a span  {
+    display: none;
+}
+
+.breadcrumbstatic ul {
+    background-color:white !important;
+    color:#69696C !important;
+    font-size: var(--fontSizeTextos1);
+    padding-left: 0px !important;
+}
+.breadcrumbstatic li{
+    display:inline;
+    cursor: pointer;
+}
+
+.breadcrumbstatic .a-ListView-item .ui-btn:hover{
+    background-color: white;
+}
+
+.breadcrumbstatic ul li a:hover{
+    color: #9C9C9D !important;
+    background-color: white;
+}
+
+.breadcrumbstatic ul li a{
+    font-size: 14px;
+}
+
+input[type=text]:disabled, textarea:disabled {
+    opacity: 0.9 !important;
+    background-color: #f7f7f7;
+}
+/* Alinea los Cards de Riesgos */
+.a-IRR-iconViewTable
+{
+    width: 100%;
+    display: inline-table;
+}
+/* Posicion y tama;o de icono warning Cards Riesgos */
+.iconoGrande
+{
+    position: absolute !important;
+    font-size: 25px;
+    top: 62%;
+    left: 45%;
+    right: 50%;
+    bottom: 50%;
+    margin: auto;
+    color: #e93a30;
+}
+/* Alinea Checkbox Agregados Manualmente */
+.optionTd
+{
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+}
+/* Oculta el footer */
+.t-Footer
+{
+    display: none;
+    /* background-color: var(--colorNavBar);*/
+}
+/* Scroll cards Class*/
+.t-IRR-regionN2 > .a-IRR-container > .a-IRR > .a-IRR-fullView > .a-IRR-content  > .a-IRR-reportView
+{
+    overflow: auto;
+}
+.rowBlockAlign
+{
+    display:flex;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+}
+/* Padin a iconos dentro de Cards */
+.iconPadding
+{
+    padding-right: 2px;
+    padding-left: 4px;
+}
+/* Alinea div superior de Cards Riesgo */
+.alignItems
+{
+    display: inline;
+}
+/* Alinea codigos RP Y RC en Cards Riesgos */
+.alignItems2
+{
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    padding: 0px 3px 1px 3px;
+}
+/* Alinea Titulo Cards Riesgos */
+.alignItems3
+{
+    display: flex;
+    justify-content: center;
+    overflow: hidden;
+    white-space: nowrap;
+}
+/* Alinea a la derecha los iconos en Cards Riesgos */
+.alignItems4
+{
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+}
+/* Ajusta el area de la Cards Riesgos */
+#riesgosList_content
+{
+    overflow: auto;
+}
+/* Define Tama;o de Cards Riesgos */
+.alturaCards
+{
+    margin: 10px 10px 10px 10px;
+    width: 350px;
+    border-radius: 0px;
+}
+.colorRiesgoBAJO
+{
+    background-image: linear-gradient(to right,rgb(160,217,149), rgb(147,198,137) );
+}
+.colorRiesgoCRITICO
+{
+    background-image: linear-gradient(to right,rgb(248,61,52), rgb(233,58,48) );
+}
+.colorRiesgoALTO
+{
+    background-image: linear-gradient(to right,rgb(255,127,38), rgb(234,117,36) );
+}
+.colorRiesgoMEDIO
+{
+    background-image: linear-gradient(to right,rgb(254,242,0), rgb(236,225,0) );
+}
+.colorRiesgoTextoInferior
+{
+    background-image: linear-gradient(to right,rgb(239,237,237), rgb(226,224,224) );
+}
+.containerIcon
+{
+    position: relative;
+    left: 50%;
+    top: 12%;
+}
+/* Bordes de parte superior Cards Riesgos */
+.borderTopCard
+{
+    /*border-top-left-radius: 0px;
+    border-top-right-radius: none !important;*/
+    padding: 2px 16px 2px 16px;
+}
+/* Bordes de parte Inferior Cards Riesgos */
+.borderBottonCard
+{
+    height: 65px;
+    border-bottom-left-radius: 5px;
+    border-bottom-right-radius: 5px;
+    padding: 2px 16px 2px 16px;
+}
+.iconSize2
+{
+    font-size: 30px;
+}
+/* Hace que aparezca un punter sobre el titulo Cards Riesgos */
+.clickCards
+{
+    margin: 0px 0px 0px 0px;
+    cursor: pointer;
+}
+/* Cambia el tama;o de letra de los textos en Cards */
+.a-CardView-subTitle
+{
+    font-size: var(--fontSizeTextos4);
+}
+/* Evita los saltos de linea */
+#riesgosList tr
+{
+    white-space: nowrap;
+}
+/* Alinea texto de mensaje Unsave Changes */
+.a-AlertMessage-details
+{
+    text-align: center;
+}
+/* Cambia de color a boton Guardar Unsave Changes */
+.js-confirmBtn, .ui-button
+{
+    background-color: #efeded;
+    color: black;
+}
+/* Alinea botones en DataGrid que tengan id permisosGrid */
+#permisosGrid .a-Toolbar-group
+{
+    width: 160px;
+    display: flex;
+    flex-direction: row-reverse;
+    justify-content: space-between;
+}
+/* Cambia tama;o a los Checkboxs de los Interactive Grid */
+.a-GV-selHeader .u-selector
+{
+    width: 12.44px;
+    height: 12.44px;
+}
+/* Le quita margen derecho a iconos de data Grid con id botonTrash */
+#permisosGrid_ig_toolbar_botonTrash .a-Icon
+{
+    margin-right: 0px;
+}
+/*Posiciona en la parte superior los botones de desplazamiento*/
+.t-TabsRegion-itemsN2 > .apex-rds-slider, .t-TabsRegion-itemsN3 > .apex-rds-slider
+{
+    top: 0px !important;
+    bottom: 0px !important;
+    align-content: space-between;
+    width: 97%;
+}
+/* Eliminar padding superior e inferior de una tabla */
+.tableSinPadding tr > td {
+    padding-top: 0;
+    padding-bottom: 0;
+}
+.t-TabsRegion-itemsN2 > .apex-rds-slider > .apex-rds-hover a, .t-TabsRegion-itemsN3 > .apex-rds-slider > .apex-rds-hover a
+{
+    height: 10;
+    display: flex;
+    align-items: center;
+}
+.t-TabsRegion-itemsN2 > .apex-rds-slider > .apex-rds-hover, .t-TabsRegion-itemsN3 > .apex-rds-slider > .apex-rds-hover
+{
+    visibility: visible !important;
+    display: block !important;
+}
+/* tabs lateral derecho */
+.t-TabsRegion-itemsN2 > .apex-rds-slider > .apex-rds-hover.left, .t-TabsRegion-itemsN2 > .apex-rds-slider > .apex-rds-hover.right, .t-TabsRegion-itemsN3 > .apex-rds-slider > .apex-rds-hover.left, .t-TabsRegion-itemsN3 > .apex-rds-slider > .apex-rds-hover.right
+{
+    width: 16px;
+    border-radius: 0px !important;
+    background: transparent;
+}
+.t-TabsRegion-itemsN2 > .apex-rds-slider > .apex-rds-hover.left a,  .t-TabsRegion-itemsN2 > .apex-rds-slider > .apex-rds-hover.right a, .t-TabsRegion-itemsN3 > .apex-rds-slider > .apex-rds-hover.left a,  .t-TabsRegion-itemsN3 > .apex-rds-slider > .apex-rds-hover.right a
+{
+    padding: 8px 2px 8px 2px;
+    background: transparent;
+}
+.t-TabsRegion-itemsN2 > .apex-rds-slider > .apex-rds-hover.left a:hover, .t-TabsRegion-itemsN2 > .apex-rds-slider > .apex-rds-hover.right a:hover, .t-TabsRegion-itemsN3 > .apex-rds-slider > .apex-rds-hover.left a:hover, .t-TabsRegion-itemsN3 > .apex-rds-slider > .apex-rds-hover.right a:hover
+{
+    background-color: var(--colorNavBar);
+    border-radius: 0px !important;
+}
+
+input.oj-inputdatetime-input.oj-text-field-input:disabled{
+    opacity: 0.8 !important;
+    background-color: #f7f7f7;
+    color:black;
+}
+
+.apex-item-select:disabled{
+    opacity: 0.75 !important;
+    background-color: #f7f7f7;
+    color:black;
+}
+.tablepadding td
+{
+    padding-top: 0px;
+    padding-bottom: 0px;
+    font-family: var(--fontText);
+    font-size: var(--fontSizeTextos4);
+    white-space: nowrap;
+    height: 20px;
+}
+
+/*.tablepadding th a
+{
+    min-height: 15px;
+    height: 25px;
+    padding-top: 0px;
+    padding-bottom: 0px;
+    font-size: var(--fontSizeTextos4);
+    font-style:normal;
+}*/
+/* color del select en dataGrid*/
+/*.a-IRR-selectList
+{
+    background-color: #ededed;
+}*/
+/*Quita el Paddin al body General*/
+.t-Body-contentInner
+{
+    padding: 5px 5px 5px 5px;
+}
+/* Ocultar boton collaps */
+.t-Header-controls
+{
+    display: none;
+}
+/* Tama;o letra select*/
+.a-IRR-selectList
+{
+    font-family: var(--fontText);
+    font-size: var(--fontSizeTextos4);
+    height: 30px;
+    padding: 0px 5px 0px 5px;
+}
+/* Quitando los bordes redondods a todas las regiones */
+.t-Region
+{
+    border-radius: 0px !important;
+}
+/*Correccion de Alturas*/
+/* Correccion scroll en tabs esto depende del contenido*/
+/*
+.t-TabsRegion-itemsN2 > .a-Tabs-panel > .t-Region >	.t-Region-bodyWrap > .t-Region-body
+{
+    overflow-y: overlay;
+    height: 43rem;
+    background-color:#ededed;
+    padding: 0px 16px 0px 0px;
+}altura tabs*/
+
+.t-TabsRegion-itemsN2 > .a-Tabs-panel > .t-Region >	.t-Region-bodyWrap > .t-Region-body
+{
+    /* overflow-y: overlay;
+     height: 43rem;  */
+    background-color:#ededed;
+}
+/* Reduciendo margenes para maximizar altura dentro de fos derecho*/
+.t-TabsRegion-itemsN2 > .a-Tabs-panel .t-Region
+{
+    margin: 0px;
+}
+
+/* Color barra Splitter */
+.a-Splitter-barH
+{
+    background-color: var(--colorFondo2);
+}
+/*tarjetas collapse lateral derecho */
+.t-regionN
+{
+    border: 1px solid;
+    border-color: var(--colorLineaTabsPN) !important;
+    margin: 5px 5px 0px 0px;
+}
+/* Interactive Grid */
+.t-IRR-regionN2 > .a-IG > .a-IG-header
+{
+    background: #ffffff;
+}
+
+.t-IRR-regionN2 > .a-IG > .a-IG-header > .a-Toolbar >.a-Toolbar-groupContainer >.a-Toolbar-group > .a-Toolbar-input
+{
+    padding-top: 0px;
+    padding-bottom: 0px;
+    font-family: var(--fontText);
+    font-size: var(--fontSizeTextos4);
+}
+.t-IRR-regionN2 > .a-IG > .a-IG-header
+{
+    padding: 4px 0px 0px 0px;
+}
+.t-IRR-regionN2 > .a-IG > .a-IG-header > .a-Toolbar
+{
+    height: 35px;
+}
+
+.t-IRR-regionN2 > .a-IG >.a-IG-body >.a-MediaBlock
+{
+    display: none;
+}
+.t-IRR-regionN2 > .a-IG >.a-IG-body > .a-IG-contentContainer > .a-IG-gridView > .a-GV-hdr > .a-GV-w-hdr > .a-GV-table th
+{
+    padding-top: 0px;
+    padding-bottom: 0px;
+    font-family: var(--fontTextTitleSB);
+    font-size: var(--fontSizeTextos4);
+    min-height: 15px;
+    height: 25px;
+    white-space: nowrap;
+    color: black;
+}
+.a-GV-table td, .a-GV-table th
+{
+    padding-top: 0px;
+    padding-bottom: 0px;
+    font-family: var(--fontText);
+    font-size: var(--fontSizeTextos4);
+    min-height: 15px;
+    height: 25px;
+    white-space: nowrap;
+    color: black;
+    background:white;
+}
+.buttonSize
+{
+    width: 48px;
+}
+.a-IRR-button--search
+{
+    width: 48px;
+}
+
+
+.buttonLeftRegion > .t-Region-bodyWrap > .t-Region-body button
+{
+    margin: 0px !important;
+    background: transparent;
+}
+.buttonLeftRegion > .t-Region-bodyWrap > .t-Region-body button:hover
+{
+    background-color: var(--colorNavBar);
+}
+.buttonLeftRegion td[align=right]
+{
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    margin-right: 10px;
+}
+
+/*Botones en un interactive Report */
+.listaButtons .a-IRR-controlGroup--views
+{
+    margin-right: 3px !important;
+    padding-right: 2px;
+}
+
+/*Fondo del logo*/
+.t-Button--navBar .t-Button-badge
+{
+    background-color: transparent !important;
+}
+
+/* iconos de expandir y comprimir invertir */
+.fa-compress, .fa-expand
+{
+    transform: rotateZ(90deg);
+}
+.iconHome
+{
+    font-size: 20px;
+}
+/* poplov Empresas Proyectos Divisiones*/
+.empresasMove .a-Button--popupLOV
+{
+    height: 22px;
+}
+.empresasMove .t-Form-itemWrapper, .empresasMove .apex-item-popup-lov
+{
+    /*width: 32rem;*/
+    /*width: 100%;*/
+    width: 93%;
+    background: transparent;
+    /*background: #b9b8b8;*/
+    /*background:#bbbbbb;*/
+    border: none;
+    font-family: var(--fontTextTitleSB);
+    font-size: var(--fontSizeTextos1);
+}
+.empresasMove .apex-item-group
+{
+    display: inline-block;
+    min-width: 30rem;
+}
+.empresasMove .a-Button--popupLOV
+{
+    /*display: none;*/
+    background: transparent;
+}
+
+.t-Form-itemWrapper .a-Button, .t-Form-itemWrapper .oj-inputdatetime-input-trigger {
+    --a-button-padding-y: 0.9rem !important;
+    --a-button-padding-x: .5rem !important;
+}
+
+.empresasMove > .t-Form-fieldContainer > .t-Form-labelContainer
+{
+    display: none;
+}
+.empresasMove
+{
+    padding: 0px 0px 0px 13px !important;
+}
+.empresasMove button
+{
+    color: white;
+}
+
+
+
+
+/* imagen usuario */
+.has-username button
+{
+    display: flex;
+    /*flex-direction: row-reverse;*/
+    flex-direction: row-reverse;
+}
+.has-username .t-Button-badge
+{
+    margin: 0px;
+}
+.t-TabsRegion-itemsPN2
+{
+    min-height: auto !important;
+}
+/*
+.gridModalEnc > .a-IRR-container > .a-IRR >  .a-IRR-fullView > .a-IRR-content > .a-IRR-reportView > .a-IRR-tableContainer > .t-fht-wrapper > .t-fht-tbody
+{
+    height: auto !important;
+}*/
+.fos-Splitter > .row
+{
+    overflow: hidden;
+}
+
+.t-Tabs
+{
+    flex-wrap: nowrap;
+}
+
+.t-TabsRegionN2 .a-Tabs-panel
+{
+    /*overflow-x: hidden;*/
+    /*overflow-y: auto;*/
+    overflow: auto !important;
+}
+
+table.treetable
+{
+    margin-top: -1px !important;
+    border-top: none !important;
+}
+table.treetable tr:first-child
+{
+    visibility: collapse;
+}
+
+.t-TabsRegionN3 .a-Tabs-panel
+{
+
+    overflow: auto !important;
+}
+
+
+/*COSAS NUEVAS JONATHAN CALO*/
+
+/*----BOTONES INTERACTIVE GRID PRINCIPAL---------*/
+.a-IRR-controlGroup--views{
+    margin-right: 48px !important;
+}
+.a-IRR-controlGroup--search
+{
+    padding: 0px !important;
+}
+.a-IRR-savedReports .a-IRR-selectList {
+    width: 199px !important;
+}
+.a-IRR-colSearch, .a-IRR-manage, .a-IRR-rowSelector, .a-IRR-savedReports
+{
+    width: auto !important;
+}
+
+/*tamaño icono boton crear*/
+.alineacionbutton{
+    --a-button-line-height: 1rem;
+    --a-button-icon-size: 1rem;
+}
+/*tamaño icono botones en general ^ del nombre de usuario*/
+.js-menuButton{
+    --a-button-line-height: 1rem;
+    --a-button-icon-size: 1rem;
+}
+/*----TERMINA BOTONES INTERACTIVE GRID PRINCIPAL---------*/
+
+
+/*-----INPUT FECHA------*/
+.a-GV-columnItem .apex-item-datepicker-jet .oj-text-field, .apex-item-wrapper--date-picker-jet .oj-text-field {
+    --oj-text-field-height: 23px!important;
+}
+/*.apex-item-wrapper--date-picker-jet .oj-text-field-container:not(.oj-text-field-has-start-slot) .oj-text-field-input {
+    height: auto!important;
+}*/
+
+.a-GV-columnItem .apex-item-datepicker-jet .oj-text-field-container .oj-component-icon.oj-clickable-icon-nocontext:not(.oj-select-clear-entry-icon):not(.oj-combobox-clear-entry-icon):not(.oj-label-help-icon-anchor), .apex-item-wrapper--date-picker-jet .oj-text-field-container .oj-component-icon.oj-clickable-icon-nocontext:not(.oj-select-clear-entry-icon):not(.oj-combobox-clear-entry-icon):not(.oj-label-help-icon-anchor) {
+    padding: 2px 2px 2px 2px;
+}
+/*-----TERMINA INPUT FECHA------*/
+
+/*-----texto nombre usuario-----*/
+.t-NavigationBar-item.has-username .t-Button-label {
+    font-weight: bold;
+}
+/*--------Colapsible new--------*/
+.t-Region--noUI>.t-Region-header {
+    background-color: white;
+    border-radius: 0px;
+}
+/*--------Colapsible new--------*/
+:root{
+    --ut-region-border-radius: 0px !important;
+}
+
+/*Estilo select plugin Select2*/
+.select2-container--default .select2-selection--single {
+    background-color: #fff !important;
+    border-top: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: 1px solid #8f8f8f !important;
+    border-radius: 0px 0px 0px 0px !important;
+}
+/*Fondo de la region derecha de fos*/
+.lateralDerechoRegion{
+    background: #ededed!important;
+}
+
+/*Estilo icono home de la raiz de gestion documental*/
+#home-raiz{
+    display: table-footer-group;
+    color: black;
+}
+
+
+/*Estilo botones con fondo blanco y hover gris en region principal*/
+.principal-region-button{
+    background-color: white;
+}
+
+.principal-region-button:hover {
+    background-color: #ededec;
+}
+
+/**Botones formulario**/
+.contenedorBoton{
+    display: flex;
+    align-items: flex-end;
+}
+
+.botonForm:hover{
+    background-color: #dad9d9;
+}
+
+/*TERMINA COSAS NUEVAS JONATHAN CALO*/
+
+* {
+    font-weight: 200;
+}
+
+.a-IRR-pagination-label {
+    font-weight: bold !important;
+}
+
+/* 1124 - RODRIGO GARCIA */
+/* Paginacion alineada en los interactive report */
+.a-IRR-paginationWrap
+{
+    padding: 0px 0px 0px 5px;
+}
+
+/* Quitar margen del body */
+.t-Body-contentInner
+{
+    padding: 0px 0px 0px 5px !important;
+}
+
+.t-Body-content
+{
+    display: flow !important;
+}
+/* 1124 - RODRIGO GARCIA */

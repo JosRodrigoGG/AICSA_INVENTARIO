@@ -30,17 +30,18 @@ RETURN NUMBER AS
                 ) FECHA_INICIAL,
             (
                 CASE
-                    WHEN LEVEL = 2 THEN
+                    WHEN LEVEL = P_LEVEL THEN
                         TRUNC(V_FECHA_FIN)
                     ELSE
                         LAST_DAY(TRUNC(ADD_MONTHS(TRUNC(V_FECHA_INICIO), LEVEL - 1), 'MM'))
                     END
                 ) FECHA_FINAL
         FROM DUAL
-        CONNECT BY LEVEL = P_LEVEL;
+        CONNECT BY LEVEL <= P_LEVEL;
 
     CURSOR C_VENTAS (P_FECHA_INICIO DATE, P_FECHA_FIN DATE) IS
         SELECT
+            --SUM(GET_CARDINALIDAD_CUENTA_CONTABLE(A.COD_CTA,A.VALOR,A.DB_HB,2020) * -1) AS SALDO
             SUM(GET_CARDINALIDAD_CUENTA_CONTABLE(A.COD_CTA,A.VALOR,A.DB_HB,2020)) AS SALDO
         FROM SAF.CON_POLDETXHEAD A
         INNER JOIN SAF.CON_INDICADORES_FORMULAS B
@@ -83,7 +84,7 @@ BEGIN
         IF P_SALDO_VENTA = 0 THEN
             P_SALDO := P_SALDO + 0;
         ELSE
-            P_SALDO := P_SALDO + (((P_SALDO_INICIAL + P_SALDO_FINAL) / 2) / ((P_SALDO_VENTA * -1) * 1.12));
+            P_SALDO := P_SALDO + (((P_SALDO_INICIAL + P_SALDO_FINAL) / 2) / ((P_SALDO_VENTA) * 1.12));
         END IF;
 
         P_CONTADOR := P_CONTADOR + 1;
